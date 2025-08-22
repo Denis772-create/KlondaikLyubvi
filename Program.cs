@@ -29,6 +29,13 @@ builder.Services.AddScoped<HttpClient>(sp =>
 
 var app = builder.Build();
 
+// Apply EF Core migrations at startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
