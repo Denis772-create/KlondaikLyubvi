@@ -4,22 +4,49 @@ on:
   push:
     branches: ["main"]
 
+env:
+  PROJECT_PATH: "" # например: src/MyApp/MyApp.csproj (укажи, если проектов несколько)
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
       - name: Publish .NET project
-        run: dotnet publish -c Release -o publish
+        run: |
+          if [ -n "${{ env.PROJECT_PATH }}" ]; then
+            dotnet publish "${{ env.PROJECT_PATH }}" -c Release -o publish
+          else
+            dotnet publish -c Release -o publish
+          fi
+          echo "Built at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" > publish/buildinfo.txt
+          echo "Commit: $GITHUB_SHA" >> publish/buildinfo.txt
 
+      # Останавливаем сервис (только тут sudo)
+      - name: Stop service
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}   # app
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            sudo -n /usr/bin/systemctl stop myapp || true
+            mkdir -p /var/www/myapp
+            # Чистим папку БЕЗ sudo — у app есть права
+            find /var/www/myapp -mindepth 1 -maxdepth 1 \
+              ! -name 'appsettings*.json' -exec rm -rf {} +
+
+      # Копируем свежие артефакты
       - name: Copy files to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -30,15 +57,17 @@ jobs:
           source: "publish/*"
           target: "/var/www/myapp/"
 
-      - name: Restart service
+      # Стартуем и проверяем
+      - name: Start & smoke check
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}   # ДОЛЖЕН быть 'app'
+          username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            whoami
-            command -v systemctl
-            sudo -n /usr/bin/systemctl restart myapp && echo "restarted"
-
+            set -e
+            sudo -n /usr/bin/systemctl start myapp
+            sudo -n /usr/bin/systemctl status myapp --no-pager || true
+            # Мини-проверка: Kestrel должен отдавать buildinfo
+            curl -fsS http://127.0.0.1:5000/buildinfo.txt | sed -n '1,2p'
