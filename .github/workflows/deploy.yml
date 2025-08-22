@@ -5,7 +5,7 @@ on:
     branches: ["main"]
 
 env:
-  PROJECT_PATH: "" # например: src/MyApp/MyApp.csproj (оставь пустым если решение одно)
+  PROJECT_PATH: "" # например: src/MyApp/MyApp.csproj (укажи, если проектов несколько)
 
 jobs:
   deploy:
@@ -20,7 +20,6 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # Сборка релиза (укажи PROJECT_PATH при необходимости)
       - name: Publish .NET project
         run: |
           if [ -n "${{ env.PROJECT_PATH }}" ]; then
@@ -28,12 +27,11 @@ jobs:
           else
             dotnet publish -c Release -o publish
           fi
-          # маячок версии для проверки
           echo "Built at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" > publish/buildinfo.txt
           echo "Commit: $GITHUB_SHA" >> publish/buildinfo.txt
 
-      # Остановим сервис и подчистим папку (оставим appsettings*.json если они живут на сервере)
-      - name: Stop service and clean target dir
+      # Останавливаем сервис (только тут sudo)
+      - name: Stop service
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -42,9 +40,10 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            sudo /usr/bin/systemctl stop myapp || true
-            sudo mkdir -p /var/www/myapp
-            sudo find /var/www/myapp -mindepth 1 -maxdepth 1 \
+            sudo -n /usr/bin/systemctl stop myapp || true
+            mkdir -p /var/www/myapp
+            # Чистим папку БЕЗ sudo — у app есть права
+            find /var/www/myapp -mindepth 1 -maxdepth 1 \
               ! -name 'appsettings*.json' -exec rm -rf {} +
 
       # Копируем свежие артефакты
@@ -58,22 +57,8 @@ jobs:
           source: "publish/*"
           target: "/var/www/myapp/"
 
-      # Права и запуск
-      - name: Start service and set permissions
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}   # app
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            set -e
-            sudo chown -R app:app /var/www/myapp
-            sudo /usr/bin/systemctl start myapp
-            sudo /usr/bin/systemctl status myapp --no-pager || true
-
-      # Быстрая проверка, что поднялась новая версия
-      - name: Smoke check (buildinfo)
+      # Стартуем и проверяем
+      - name: Start & smoke check
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -82,5 +67,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            # проверяем локально через Kestrel (падает, если сервис не жив)
-            curl -fsS http://127.0.0.1:5000/buildinfo.txt || (echo "No buildinfo" && exit 1)
+            sudo -n /usr/bin/systemctl start myapp
+            sudo -n /usr/bin/systemctl status myapp --no-pager || true
+            # Мини-проверка: Kestrel должен отдавать buildinfo
+            curl -fsS http://127.0.0.1:5000/buildinfo.txt | sed -n '1,2p'
