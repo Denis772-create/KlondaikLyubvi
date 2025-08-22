@@ -65,11 +65,26 @@ app.MapGet("/api/lovenotes", async (LoveNoteService service) =>
     });
 });
 
-app.MapPost("/api/lovenotes", async (KlondaikLyubvi.Shared.LoveNoteDto dto, LoveNoteService service) =>
+app.MapPost("/api/lovenotes", async (HttpContext ctx, KlondaikLyubvi.Shared.LoveNoteDto dto, LoveNoteService service, TelegramService telegram, AppDbContext db) =>
 {
     // TODO: получить userId из куки/сессии
     int userId = dto.UserId;
     var note = await service.AddAsync(userId, dto.Text);
+
+    // Telegram notification to partner with link to the site
+    try
+    {
+        var partnerId = userId == 1 ? 2 : 1;
+        var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
+        var link = $"{baseUrl}/love";
+        // Cute message without revealing the note text
+        var sender = await db.Users.FindAsync(userId);
+        var senderName = sender?.DisplayName ?? "Партнёр";
+        var msg = $"💌 У тебя новое признание от {senderName}!\nОткрой, когда будешь готов(а) улыбнуться. 🫶";
+        await telegram.SendMessageWithUrlButtonAsync(partnerId, msg, "Открыть признания", link);
+    }
+    catch { }
+
     return new LoveNoteDto
     {
         Id = note.Id,

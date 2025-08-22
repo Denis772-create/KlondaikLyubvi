@@ -1,4 +1,5 @@
 using Telegram.Bot;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace KlondaikLyubvi.Services;
 
@@ -24,6 +25,22 @@ public class TelegramService
             catch (Exception ex)
             {
                 // Не падаем из-за сетевых/Telegram ошибок в проде
+                Console.WriteLine($"[Telegram] Send failed: {ex.Message}");
+            }
+        }
+    }
+
+    public async Task SendMessageWithUrlButtonAsync(int userId, string message, string buttonText, string url)
+    {
+        if (_userChatIds.TryGetValue(userId, out var chatId))
+        {
+            try
+            {
+                var markup = new InlineKeyboardMarkup(InlineKeyboardButton.WithUrl(buttonText, url));
+                await _botClient.SendMessage(chatId, message, parseMode: Telegram.Bot.Types.Enums.ParseMode.Markdown, replyMarkup: markup);
+            }
+            catch (Exception ex)
+            {
                 Console.WriteLine($"[Telegram] Send failed: {ex.Message}");
             }
         }

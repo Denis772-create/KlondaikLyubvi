@@ -90,26 +90,27 @@
     }
 }
 
-<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
-    <div class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-6 px-2 sm:py-10 sm:px-4 font-sans">
+    <div class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-4 sm:p-6">
         <div class="flex items-center justify-between mb-6">
-            <h1 class="text-3xl font-bold text-pink-600 flex items-center gap-2">
-                <span class="inline-block text-4xl">📅</span> Календарик любви
+            <h1 class="text-2xl sm:text-3xl font-bold text-pink-600 flex items-center gap-2">
+                <span class="inline-block text-3xl sm:text-4xl">📅</span> Календарик любви
             </h1>
-            <div class="flex items-center gap-2">
-                <button class="px-3 py-2 rounded-full @(ViewMode=="month"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "month"; })'>Месяц</button>
-                <button class="px-3 py-2 rounded-full @(ViewMode=="week"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "week"; })'>Неделя</button>
+            <div class="flex items-center gap-2 flex-wrap">
+                <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-full @(ViewMode=="month"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "month"; })'>Месяц</button>
+                <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-full @(ViewMode=="week"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "week"; })'>Неделя</button>
                 <div class="w-px h-6 bg-pink-200 mx-1"></div>
-                <button class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Prev">◀</button>
-                <div class="px-3 py-2 font-semibold">@Current.ToString(ViewMode=="month"?"MMMM yyyy":"dd.MM.yyyy")</div>
-                <button class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Next">▶</button>
-                <button class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Today">Сегодня</button>
+                <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Prev">◀</button>
+                <div class="px-2 py-1 sm:px-3 sm:py-2 font-semibold text-sm sm:text-base">@Current.ToString(ViewMode=="month"?"MMMM yyyy":"dd.MM.yyyy")</div>
+                <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Next">▶</button>
+                <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Today">Сегодня</button>
             </div>
         </div>
-        <div class="grid grid-cols-7 gap-3 mb-3 text-center text-xs text-gray-500">
+        <div class="grid grid-cols-7 gap-2 sm:gap-3 mb-3 text-center text-[11px] sm:text-xs text-gray-500">
             <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
         </div>
-        <div class="grid grid-cols-7 gap-3">
+        <div class="overflow-x-auto">
+            <div class="grid grid-cols-7 gap-2 sm:gap-3 min-w-[680px] sm:min-w-0">
             @if (ViewMode == "month")
             {
                 @for (int i = 0; i < FirstDayOffset; i++)
@@ -120,9 +121,9 @@
                 {
                     var day = i + 1;
                     var isToday = DateTime.Today.Year == Current.Year && DateTime.Today.Month == Current.Month && DateTime.Today.Day == day;
-                    <div class="rounded-2xl border border-pink-100 bg-white shadow-sm p-3 min-h-[90px] cursor-pointer hover:shadow" @onclick="() => OpenDay(day)">
+                    <div class="rounded-2xl border border-pink-100 bg-white shadow-sm p-2 sm:p-3 min-h-[72px] sm:min-h-[90px] cursor-pointer hover:shadow" @onclick="() => OpenDay(day)">
                         <div class="flex items-center justify-between mb-1">
-                            <div class="w-8 h-8 flex items-center justify-center rounded-full @(isToday?"bg-pink-500 text-white":"bg-pink-50 text-pink-700")">@day</div>
+                            <div class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full @(isToday?"bg-pink-500 text-white":"bg-pink-50 text-pink-700")">@day</div>
                             <div class="text-xs text-gray-400">@((EventsByDay.ContainsKey(day)?EventsByDay[day].Count:0))</div>
                         </div>
                         @if (EventsByDay.ContainsKey(day))
@@ -130,11 +131,11 @@
                             foreach (var e in EventsByDay[day].Take(3))
                             {
                                 var color = e.Type=="invite"?"text-rose-600":(e.Type=="gift"?"text-yellow-700":"text-pink-700");
-                                <div class="text-xs truncate @color" title="@e.Title">@e.Emoji @e.Title</div>
+                                <div class="text-[11px] sm:text-xs truncate @color" title="@e.Title">@e.Emoji @e.Title</div>
                             }
                             if (EventsByDay[day].Count > 3)
                             {
-                                <div class="text-xs text-gray-400">+@((EventsByDay[day].Count - 3)) ещё</div>
+                                <div class="text-[11px] sm:text-xs text-gray-400">+@((EventsByDay[day].Count - 3)) ещё</div>
                             }
                         }
                     </div>
@@ -148,9 +149,9 @@
                     var date = startOfWeek.AddDays(d);
                     var day = date.Day;
                 var isToday = DateTime.Today.Year == Current.Year && DateTime.Today.Month == Current.Month && DateTime.Today.Day == day;
-                    <div class="rounded-2xl border border-pink-100 bg-white shadow-sm p-3 min-h-[90px] cursor-pointer hover:shadow" @onclick="() => OpenDay(day)">
+                    <div class="rounded-2xl border border-pink-100 bg-white shadow-sm p-2 sm:p-3 min-h-[72px] sm:min-h-[90px] cursor-pointer hover:shadow" @onclick="() => OpenDay(day)">
                         <div class="flex items-center justify-between mb-1">
-                            <div class="w-8 h-8 flex items-center justify-center rounded-full @(isToday?"bg-pink-500 text-white":"bg-pink-50 text-pink-700")">@day</div>
+                            <div class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full @(isToday?"bg-pink-500 text-white":"bg-pink-50 text-pink-700")">@day</div>
                             <div class="text-xs text-gray-400">@((EventsByDay.ContainsKey(day)?EventsByDay[day].Count:0))</div>
                         </div>
                         @if (EventsByDay.ContainsKey(day))
@@ -164,6 +165,7 @@
                     </div>
                 }
             }
+            </div>
         </div>
     </div>
 </div>

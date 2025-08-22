@@ -120,16 +120,16 @@
     }
 }
 
-<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
-    <div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
-        <h1 class="text-3xl font-bold text-pink-600 mb-6 text-center flex items-center justify-center gap-2">
-            <span class="inline-block text-4xl">📝</span> Я тебя люблю, потому что…
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-6 px-2 sm:py-10 sm:px-4 font-sans">
+    <div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-pink-600 mb-6 text-center flex items-center justify-center gap-2">
+            <span class="inline-block text-3xl sm:text-4xl">📝</span> Я тебя люблю, потому что…
         </h1>
-        <p class="text-center text-gray-600 mb-8">Пишите друг другу короткие, но важные слова любви 💖</p>
-        <div class="flex gap-2 mb-6 relative">
-            <input @bind="Text" class="flex-1 rounded-xl border-pink-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="Добавить признание..." />
-            <button type="button" @onclick="ToggleEmojiPicker" class="px-2 text-2xl">😊</button>
-            <button class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-2 rounded-xl font-semibold transition" @onclick="AddNote">Добавить</button>
+        <p class="text-center text-gray-600 mb-8 text-xs sm:text-sm">Пишите друг другу короткие, но важные слова любви 💖</p>
+        <div class="flex flex-wrap gap-2 mb-6 relative">
+            <input @bind="Text" class="flex-1 rounded-xl border-pink-200 px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="Добавить признание..." />
+            <button type="button" @onclick="ToggleEmojiPicker" class="px-2 text-xl sm:text-2xl">😊</button>
+            <button class="bg-pink-500 hover:bg-pink-600 text-white px-4 sm:px-6 py-2 rounded-xl font-semibold text-sm sm:text-base transition" @onclick="AddNote">Добавить</button>
             @if (showEmojiPicker)
             {
                 <div id="emoji-picker" class="absolute left-0 top-full mt-2 z-20 w-[min(100%,360px)] bg-white rounded-2xl shadow-2xl p-2 animate-fade-in border border-pink-100 select-none" @onmousedown:stopPropagation>
@@ -140,10 +140,10 @@
                             <button type="button" class="@(isActive ? "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-500 text-white" : "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => activeEmojiCategory = cat">@cat</button>
                         }
                     </div>
-                    <div class="grid grid-cols-8 gap-1 max-h-56 overflow-y-auto">
+                    <div class="grid grid-cols-6 sm:grid-cols-8 gap-1 max-h-56 overflow-y-auto">
                         @foreach (var emoji in EmojiCategories[activeEmojiCategory])
                         {
-                            <button type="button" class="text-xl hover:scale-125 transition" @onclick="() => InsertEmoji(emoji)">@emoji</button>
+                            <button type="button" class="text-lg sm:text-xl hover:scale-125 transition" @onclick="() => InsertEmoji(emoji)">@emoji</button>
                         }
                     </div>
                 </div>
@@ -156,18 +156,18 @@
     var emoji = isDenis ? "🧔" : "👩";
     var bg = isDenis ? "linear-gradient(to right, #e0f2fe, #bae6fd)" : "linear-gradient(to right, #fce7f3, #fbcfe8)";
     var color = isDenis ? "#2563eb" : "#be185d";
-    <div class="rounded-xl shadow-lg p-5 flex flex-col gap-2 transition"
+    <div class="rounded-xl shadow-lg p-4 sm:p-5 flex flex-col gap-2 transition"
          style="background: @bg">
         <div class="flex items-center gap-2">
-            <span class="text-2xl">@emoji</span>
-            <div class="text-lg font-semibold flex-1" style="color:@color">@note.Text</div>
+            <span class="text-xl sm:text-2xl">@emoji</span>
+            <div class="text-base sm:text-lg font-semibold flex-1 break-words" style="color:@color">@note.Text</div>
             @if (note.UserId == UserId)
             {
                 <button class="text-xs text-pink-400 hover:text-pink-600" title="Редактировать" @onclick="() => StartEdit(note)">✏️</button>
                 <button class="text-xs text-red-400 hover:text-red-600" title="Удалить" @onclick="() => DeleteNote(note)">🗑</button>
             }
         </div>
-        <div class="text-sm text-gray-400">@note.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
+        <div class="text-xs sm:text-sm text-gray-400">@note.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
     </div>
 }
         </div>
