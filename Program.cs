@@ -133,7 +133,7 @@ app.MapDelete("/api/lovenotes/{id}", async (int id, AppDbContext db) =>
     return Results.Ok();
 });
 
-// Photo gallery endpoints
+// Photo gallery endpoints f
 app.MapGet("/api/photos", async (AppDbContext db) =>
 {
     var photos = await db.Photos.OrderByDescending(p => p.UploadedAt).ToListAsync();
