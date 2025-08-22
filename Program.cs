@@ -358,7 +358,6 @@ app.MapGet("/api/calendar/{userId}", async (int userId, int year, int month, App
     return Results.Ok(all);
 });
 
-// Invites
 app.MapGet("/api/invites", async (AppDbContext db) =>
     await db.Events.OrderBy(e => e.Date).Select(e => new { e.Id, Title = e.Title, Description = e.Description, e.Date, Emoji = "🎟️", CreatedByUserId = e.UserId }).ToListAsync()
 );
