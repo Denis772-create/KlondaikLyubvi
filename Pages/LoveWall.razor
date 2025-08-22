@@ -1,0 +1,187 @@
+@page "/love"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using Microsoft.JSInterop
+
+@implements IAsyncDisposable
+@code {
+    class LoveNoteDto
+    {
+        public int Id { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+        public int UserId { get; set; }
+        public string? UserDisplayName { get; set; }
+    }
+    List<LoveNoteDto> Notes = new();
+    string? Text, Error, EditText;
+    int? EditId = null;
+    int UserId = 0;
+    string? UserName;
+    bool showEmojiPicker = false;
+    string activeEmojiCategory = "Любовь";
+    Dictionary<string, string[]> EmojiCategories = new()
+    {
+        ["Любовь"] = new [] { "😍","🥰","😘","😻","💖","💗","💓","💞","💕","💘","💝","💟","💋","💌","🌹","🌸","🫶","🤍","🩷","🫦" },
+        ["Эмоции"] = new [] { "😊","😇","😌","😎","😂","🤣","😅","😉","🤗","🙈","🥹","😭","🤔","🤭","🤩","🥳" },
+        ["Жесты"] = new [] { "👍","👎","👏","🤝","🙏","👌","✌️","🤟","🫶","👊","🤲","🫶🏻" },
+        ["Еда"] = new [] { "🍓","🍫","🍰","🍩","🍪","🧁","🍯","🍎","🍒","🍇","🥐","🥞","☕","🍷" },
+        ["Разное"] = new [] { "🎁","🎉","✨","🔥","🌙","⭐","☀️","🛁","🎥","🎵","📸","🏖️" }
+    };
+    void ToggleEmojiPicker()
+    {
+        showEmojiPicker = !showEmojiPicker;
+        if (showEmojiPicker)
+        {
+            _selfRef ??= DotNetObjectReference.Create(this);
+            JS.InvokeVoidAsync("registerClickOutsideById", "emoji-picker", _selfRef);
+        }
+        else
+        {
+            JS.InvokeVoidAsync("unregisterClickOutsideById", "emoji-picker");
+        }
+    }
+    void InsertEmoji(string emoji)
+    {
+        Text += emoji;
+        // как в Telegram: пикер остаётся открытым для выбора нескольких эмодзи
+    }
+    DotNetObjectReference<LoveWall>? _selfRef;
+    protected override async Task OnInitializedAsync()
+    {
+        Notes = await Http.GetFromJsonAsync<List<LoveNoteDto>>("/api/lovenotes") ?? new();
+        UserId = await GetUserId();
+    }
+    // Регистрация обработчика теперь выполняется при открытии пикера
+    [JSInvokable]
+    public void CloseEmojiPicker()
+    {
+        if (showEmojiPicker)
+        {
+            showEmojiPicker = false;
+            StateHasChanged();
+        }
+    }
+    public ValueTask DisposeAsync()
+    {
+        _selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+    async Task<int> GetUserId()
+    {
+        var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        return int.TryParse(userIdStr, out var id) ? id : 0;
+    }
+    async Task AddNote()
+    {
+        Error = null;
+        var resp = await Http.PostAsJsonAsync("/api/lovenotes", new LoveNoteDto { Text = Text ?? "", UserId = UserId });
+        if (resp.IsSuccessStatusCode)
+        {
+            var note = await resp.Content.ReadFromJsonAsync<LoveNoteDto>();
+            if (note != null) Notes.Insert(0, note);
+            Text = "";
+        }
+        else
+        {
+            Error = "Ошибка добавления";
+        }
+    }
+    void StartEdit(LoveNoteDto note)
+    {
+        EditId = note.Id;
+        EditText = note.Text;
+    }
+    async Task SaveEdit(LoveNoteDto note)
+    {
+        note.Text = EditText ?? note.Text;
+        var resp = await Http.PutAsJsonAsync($"/api/lovenotes/{note.Id}", note);
+        if (resp.IsSuccessStatusCode)
+        {
+            EditId = null;
+            EditText = null;
+        }
+        else
+        {
+            Error = "Ошибка сохранения";
+        }
+    }
+    async Task DeleteNote(LoveNoteDto note)
+    {
+        var resp = await Http.DeleteAsync($"/api/lovenotes/{note.Id}");
+        if (resp.IsSuccessStatusCode)
+        {
+            Notes.Remove(note);
+        }
+        else
+        {
+            Error = "Ошибка удаления";
+        }
+    }
+}
+
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
+    <div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
+        <h1 class="text-3xl font-bold text-pink-600 mb-6 text-center flex items-center justify-center gap-2">
+            <span class="inline-block text-4xl">📝</span> Я тебя люблю, потому что…
+        </h1>
+        <p class="text-center text-gray-600 mb-8">Пишите друг другу короткие, но важные слова любви 💖</p>
+        <div class="flex gap-2 mb-6 relative">
+            <input @bind="Text" class="flex-1 rounded-xl border-pink-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="Добавить признание..." />
+            <button type="button" @onclick="ToggleEmojiPicker" class="px-2 text-2xl">😊</button>
+            <button class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-2 rounded-xl font-semibold transition" @onclick="AddNote">Добавить</button>
+            @if (showEmojiPicker)
+            {
+                <div id="emoji-picker" class="absolute left-0 top-full mt-2 z-20 w-[min(100%,360px)] bg-white rounded-2xl shadow-2xl p-2 animate-fade-in border border-pink-100 select-none" @onmousedown:stopPropagation>
+                    <div class="flex gap-1 mb-2 overflow-x-auto">
+                        @foreach (var cat in EmojiCategories.Keys)
+                        {
+                            var isActive = cat == activeEmojiCategory;
+                            <button type="button" class="@(isActive ? "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-500 text-white" : "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => activeEmojiCategory = cat">@cat</button>
+                        }
+                    </div>
+                    <div class="grid grid-cols-8 gap-1 max-h-56 overflow-y-auto">
+                        @foreach (var emoji in EmojiCategories[activeEmojiCategory])
+                        {
+                            <button type="button" class="text-xl hover:scale-125 transition" @onclick="() => InsertEmoji(emoji)">@emoji</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="space-y-5">
+           @foreach (var note in Notes)
+{
+    var isDenis = note.UserId == 1; // 1 — Денис, 2 — Лиза
+    var emoji = isDenis ? "🧔" : "👩";
+    var bg = isDenis ? "linear-gradient(to right, #e0f2fe, #bae6fd)" : "linear-gradient(to right, #fce7f3, #fbcfe8)";
+    var color = isDenis ? "#2563eb" : "#be185d";
+    <div class="rounded-xl shadow-lg p-5 flex flex-col gap-2 transition"
+         style="background: @bg">
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">@emoji</span>
+            <div class="text-lg font-semibold flex-1" style="color:@color">@note.Text</div>
+            @if (note.UserId == UserId)
+            {
+                <button class="text-xs text-pink-400 hover:text-pink-600" title="Редактировать" @onclick="() => StartEdit(note)">✏️</button>
+                <button class="text-xs text-red-400 hover:text-red-600" title="Удалить" @onclick="() => DeleteNote(note)">🗑</button>
+            }
+        </div>
+        <div class="text-sm text-gray-400">@note.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
+    </div>
+}
+        </div>
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="text-red-500 mt-4">@Error</div>
+        }
+    </div>
+</div>
+
+<style>
+.animate-fade-in { animation: fade-in 0.15s cubic-bezier(.4,0,.2,1) both; }
+@@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>

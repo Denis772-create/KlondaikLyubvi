@@ -1,0 +1,342 @@
+@page "/store"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+@code {
+    class StoreItemDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public int Price { get; set; }
+        public string Emoji { get; set; } = string.Empty;
+    }   
+    class HistoryDto
+    {
+        public int Id { get; set; }
+        public string? StoreItemName { get; set; }
+        public string? UserName { get; set; }
+        public string? ToUserName { get; set; }
+        public DateTime Date { get; set; }
+        public bool IsGift { get; set; }
+        public DateTime? ExecutionDate { get; set; }
+        public bool IsExecuted { get; set; }
+    }
+    int UserId = 1; // TODO: получить из сессии/куки
+    int Balance = 0;
+    List<StoreItemDto> Items = new();
+    List<HistoryDto> History = new();
+    Dictionary<int, int?> GiftToUser = new();
+    string? Error;
+    StoreItemDto? SelectedItem = null;
+    DateTime ExecutionDate = DateTime.Today.AddDays(1);
+    bool ShowBuyModal = false;
+    List<HistoryDto> GiftsToMe = new();
+    DateTime? GiftStartDate = null;
+    DateTime? GiftEndDate = null;
+    int GiftCount = 1;
+    bool ShowHistory = false;
+    bool ShowGifts = false;
+    bool ShowActive = true;
+    string ActiveTab = "store"; // store | gifts | history
+    void SelectTab(string tab) => ActiveTab = tab;
+
+    // Gifts filter/search state
+    string GiftQuery = string.Empty;
+    string GiftFilter = "active"; // active | done
+    IEnumerable<HistoryDto> FilteredGifts
+        => (GiftsToMe
+            .Where(g => GiftFilter == "active" ? !g.IsExecuted : g.IsExecuted)
+            .Where(g => string.IsNullOrWhiteSpace(GiftQuery)
+                || (g.StoreItemName ?? string.Empty).Contains(GiftQuery, StringComparison.OrdinalIgnoreCase)
+                || (g.IsExecuted ? "исполнено" : "активно").Contains(GiftQuery, StringComparison.OrdinalIgnoreCase))
+           ).OrderByDescending(g => g.Date);
+
+    // History filters
+    string HistoryQuery = string.Empty;
+    string HistoryFilter = "all"; // all | purchases | gifts | active | done
+    IEnumerable<HistoryDto> FilteredHistory
+        => (History
+            .Where(h => HistoryFilter == "all"
+                        ? true
+                        : HistoryFilter == "purchases" ? !h.IsGift
+                        : HistoryFilter == "gifts" ? h.IsGift
+                        : HistoryFilter == "active" ? (!h.IsGift && !h.IsExecuted)
+                        : (h.IsGift && h.IsExecuted))
+            .Where(h => string.IsNullOrWhiteSpace(HistoryQuery)
+                        || (h.StoreItemName ?? string.Empty).Contains(HistoryQuery, StringComparison.OrdinalIgnoreCase)
+                        || (h.UserName ?? string.Empty).Contains(HistoryQuery, StringComparison.OrdinalIgnoreCase)
+                        || (h.ToUserName ?? string.Empty).Contains(HistoryQuery, StringComparison.OrdinalIgnoreCase))
+           ).OrderByDescending(h => h.Date);
+
+    // intentionally no explicit top-up UI here
+    async Task LoadGiftsToMe()
+    {
+        GiftsToMe = (await Http.GetFromJsonAsync<List<HistoryDto>>($"/api/gifts/{UserId}") ?? new()).Where(g => g.IsGift && g.ToUserName != null).ToList();
+    }
+    async Task MarkGiftExecuted(int giftId)
+    {
+        await Http.PostAsync($"/api/gifts/execute/{giftId}", null);
+        await LoadGiftsToMe();
+        await LoadHistory();
+    }
+    async Task ExchangeGiftToKisses(int giftId, int price)
+    {
+        await Http.PostAsync($"/api/gifts/exchange/{giftId}", null);
+        Balance += price;
+        await LoadGiftsToMe();
+        await LoadHistory();
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        // Получаем userId из cookie через JSInterop
+        var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        if (int.TryParse(userIdStr, out var uid))
+            UserId = uid;
+        Items = await Http.GetFromJsonAsync<List<StoreItemDto>>($"/api/storeitems/for/{UserId}") ?? new();
+        Balance = await Http.GetFromJsonAsync<int>($"/api/balance/{UserId}");
+        await LoadHistory();
+        await LoadGiftsToMe();
+    }
+    async Task LoadHistory()
+    {
+        History = await Http.GetFromJsonAsync<List<HistoryDto>>($"/api/history/{UserId}") ?? new();
+    }
+    async Task Buy(StoreItemDto item)
+    {
+        Error = null;
+        var toUserId = GiftToUser.TryGetValue(item.Id, out var value) ? value : null;
+        var resp = await Http.PostAsJsonAsync("/api/buy", new { UserId, StoreItemId = item.Id, IsGift = toUserId != null, ToUserId = toUserId });
+        if (resp.IsSuccessStatusCode)   
+        {
+            Balance -= item.Price;
+            await LoadHistory();
+            GiftToUser[item.Id] = null;
+        }
+        else
+        {
+            Error = "Недостаточно 💋 для покупки!";
+        }
+    }
+
+    Task OpenBuyModal(StoreItemDto item)
+    {
+        SelectedItem = item;
+        ExecutionDate = DateTime.Today.AddDays(1);
+        ShowBuyModal = true;
+        return Task.CompletedTask;
+    }
+    async Task ConfirmBuy()
+    {
+        if (SelectedItem == null) return;
+        Error = null;
+        var toUserId = GiftToUser.TryGetValue(SelectedItem.Id, out var value) ? value : null;
+        var isGift = toUserId != null;
+        var resp = await Http.PostAsJsonAsync("/api/buy", new {
+            UserId,
+            StoreItemId = SelectedItem.Id,
+            IsGift = isGift,
+            ToUserId = toUserId,
+            ExecutionDate = isGift ? (DateTime?)null : ExecutionDate,
+            GiftStartDate = isGift ? GiftStartDate : null,
+            GiftEndDate = isGift ? GiftEndDate : null,
+            GiftCount = isGift ? GiftCount : 1
+        });
+        if (resp.IsSuccessStatusCode)
+        {
+            Balance -= SelectedItem.Price * (isGift ? GiftCount : 1);
+            await LoadHistory();
+            GiftToUser[SelectedItem.Id] = null;
+            ShowBuyModal = false;
+        }
+        else
+        {
+            Error = "Недостаточно 💋 для покупки!";
+        }
+    }
+    async Task OpenGiftModal(StoreItemDto item)
+    {
+        GiftToUser[item.Id] = (UserId == 1 ? 2 : 1); // или логика выбора получателя
+        await OpenBuyModal(item);
+        GiftStartDate = DateTime.Today;
+        GiftEndDate = DateTime.Today.AddDays(7);
+        GiftCount = 1;
+    }
+    void GoToStorePanel() => NavigationManager.NavigateTo("/storepanel");
+}
+
+<div class="bg-gradient-to-br from-rose-100 to-pink-200 min-h-screen py-10 px-4 font-sans">
+    <div class="max-w-4xl mx-auto bg-white/70 backdrop-blur-md rounded-3xl shadow-[0_20px_60px_rgba(233,100,140,0.15)] p-5 md:p-7">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 shadow-lg flex items-center justify-center text-4xl">💋</div>
+            <div class="flex-1 min-w-0">
+                <div class="text-3xl md:text-4xl font-extrabold text-gray-800">Магазин любви</div>
+                <div class="text-gray-500 text-sm md:text-base mt-1">Обменивайте поцелуи и ласки на особые романтические услуги</div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="store-balance" class="rounded-full border border-pink-200 bg-white/80 px-4 py-2 shadow-sm flex items-center gap-2 text-gray-800">
+                    <span class="inline-block w-3 h-3 rounded-full bg-pink-400"></span>
+                    <span class="font-extrabold text-xl">@Balance</span>
+                    <span class="hidden sm:inline">поцелуев</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="h-px bg-gradient-to-r from-transparent via-pink-200 to-transparent my-4"></div>
+        <div class="flex gap-8 items-center mb-6">
+            <button class="text-lg font-semibold px-4 py-1 rounded-full @(ActiveTab=="store"?"bg-white shadow text-gray-900":"text-gray-500 hover:text-pink-600")" @onclick='@(() => SelectTab("store"))'>Магазин</button>
+            <button class="text-lg font-semibold px-4 py-1 rounded-full @(ActiveTab=="gifts"?"bg-white shadow text-gray-900":"text-gray-500 hover:text-pink-600")" @onclick='@(() => SelectTab("gifts"))'>Подарки мне</button>
+            <button class="text-lg font-semibold px-4 py-1 rounded-full @(ActiveTab=="history"?"bg-white shadow text-gray-900":"text-gray-500 hover:text-pink-600")" @onclick='@(() => SelectTab("history"))'>История</button>
+        </div>
+
+        @if (ActiveTab == "store")
+        {
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                @foreach (var item in Items)
+                {
+                    var notEnough = item.Price > Balance;
+                    <div class="bg-gradient-to-r from-pink-100 to-rose-50 rounded-xl shadow-lg p-6 flex flex-col justify-between transition hover:scale-105 hover:shadow-2xl">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <span class="text-2xl mr-2">@item.Emoji</span>
+                                <h2 class="text-lg font-semibold text-pink-700">@item.Name</h2>
+                            </div>
+                            <p class="text-gray-600 text-sm mb-4">@item.Description</p>
+                        </div>
+                        <div class="mt-auto">
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 mt-4">
+                                <span class="text-pink-600 font-bold text-lg flex items-center sm:mr-auto">
+                                    @item.Price <span class="ml-1 text-xl">💋</span>
+                                </span>
+                                <button class="w-full sm:w-auto bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-md transition disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed font-bold text-base mt-2 sm:mt-0"
+                                        disabled="@notEnough" @onclick="() => OpenBuyModal(item)">
+                                    Купить
+                                </button>
+                                <button class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full border-2 transition mt-2 sm:mt-0
+                                    @(GiftToUser.ContainsKey(item.Id) && GiftToUser[item.Id] != null ? "bg-pink-200 border-pink-500 text-pink-700 hover:bg-pink-300" : "bg-white border-gray-300 text-gray-500 hover:border-pink-300 hover:bg-pink-50")"
+                                    title="Подарить" aria-label="Подарить" @onclick="() => OpenGiftModal(item)">
+                                    <span class="text-2xl" role="img" aria-hidden="true">🎁</span>
+                                </button>
+                            </div>
+                            @if (notEnough)
+                            {
+                                <div class="text-xs text-red-400 mt-2 text-center">Не хватает 💋</div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="text-center text-red-500 mt-4">@Error</div>
+        }
+        @if (ActiveTab == "history")
+        {
+            <div class="mt-4 space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center gap-3">
+                    <div class="relative flex-1">
+                        <input class="w-full rounded-2xl border border-pink-200 bg-white/80 px-12 py-3 shadow-inner focus:outline-none focus:ring-2 focus:ring-pink-300" placeholder="Поиск по названию или участникам..." @bind="HistoryQuery" />
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 opacity-60">🔎</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="px-4 py-2 rounded-full text-sm font-semibold @(HistoryFilter=="all"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => HistoryFilter = "all")'>Все</button>
+                        <button class="px-4 py-2 rounded-full text-sm font-semibold @(HistoryFilter=="purchases"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => HistoryFilter = "purchases")'>Покупки</button>
+                        <button class="px-4 py-2 rounded-full text-sm font-semibold @(HistoryFilter=="gifts"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => HistoryFilter = "gifts")'>Подарки</button>
+                        <button class="px-4 py-2 rounded-full text-sm font-semibold @(HistoryFilter=="active"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => HistoryFilter = "active")'>Активные</button>
+                        <button class="px-4 py-2 rounded-full text-sm font-semibold @(HistoryFilter=="done"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => HistoryFilter = "done")'>Исполненные</button>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    @foreach (var h in FilteredHistory)
+                    {
+                        var tag = h.IsGift ? "bg-yellow-100 text-yellow-800" : "bg-pink-100 text-pink-700";
+                        <div class="bg-white rounded-2xl shadow px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold @tag">@(h.IsGift ? "Подарок" : "Покупка")</span>
+                            <span class="text-pink-700 font-semibold">@((h.IsGift ? (h.UserName + " подарил(а) ") : (h.UserName + " купил(а) "))) «@h.StoreItemName»</span>
+                            @if (h.ExecutionDate != null)
+                            {
+                                <span class="text-xs text-pink-500">Исполнить: @h.ExecutionDate.Value.ToString("dd.MM.yyyy")</span>
+                            }
+                            @if (h.IsGift && !string.IsNullOrEmpty(h.ToUserName))
+                            {
+                                <span class="text-pink-500">→ @h.ToUserName</span>
+                            }
+                            <span class="text-xs text-gray-400 ml-auto">@h.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        @if (ActiveTab == "gifts")
+        {
+            <div class="mb-4 flex flex-col md:flex-row md:items-center gap-3">
+                <div class="relative flex-1">
+                    <input class="w-full rounded-2xl border border-pink-200 bg-white/80 px-12 py-3 shadow-inner focus:outline-none focus:ring-2 focus:ring-pink-300" placeholder="Найти подарок или статус..." @bind="GiftQuery" />
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 opacity-60">🔎</span>
+                </div>
+                <div class="flex gap-2">
+                    <button class="px-4 py-2 rounded-full text-sm font-semibold @(GiftFilter=="active"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => GiftFilter = "active")'>Активные</button>
+                    <button class="px-4 py-2 rounded-full text-sm font-semibold @(GiftFilter=="done"?"bg-pink-500 text-white":"bg-white text-gray-600 border border-pink-200")" @onclick='@(() => GiftFilter = "done")'>Исполненные</button>
+                </div>
+            </div>
+            <div class="space-y-3">
+                @foreach (var g in FilteredGifts)
+                {
+                    var statusClass = g.IsExecuted ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-800";
+                    <div class="bg-white/90 rounded-2xl shadow p-5">
+                        <div class="flex items-start gap-3 flex-wrap">
+                            <div class="flex-1 min-w-[220px]">
+                                <div class="text-pink-700 font-extrabold text-xl">@g.UserName подарил(а) «@g.StoreItemName»</div>
+                                @if (g.ExecutionDate != null)
+                                {
+                                    <div class="text-sm text-gray-500 mt-1">Исполнить до: @g.ExecutionDate.Value.ToString("dd.MM.yyyy")</div>
+                                }
+                            </div>
+                            <div class="flex items-center gap-2 ml-auto">
+                                @if (!g.IsExecuted)
+                                {
+                                    <button class="px-5 py-2 rounded-full bg-green-500 hover:bg-green-600 text-white font-bold shadow" @onclick="() => MarkGiftExecuted(g.Id)">Исполнить</button>
+                                    <button class="px-5 py-2 rounded-full bg-amber-400 hover:bg-amber-500 text-white font-bold shadow" @onclick="() => ExchangeGiftToKisses(g.Id, Items.FirstOrDefault(i => i.Name == g.StoreItemName)?.Price ?? 0)">Обменять на поцелуи</button>
+                                }
+                                else
+                                {
+                                    <span class="px-4 py-2 rounded-full font-bold @statusClass">Исполнено</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+@if (ShowBuyModal && SelectedItem != null)
+{
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-center mx-2 sm:mx-auto">
+            @if (GiftToUser.ContainsKey(SelectedItem.Id) && GiftToUser[SelectedItem.Id] != null)
+            {
+                <h2 class="text-xl font-bold mb-4">Параметры подарка</h2>
+                <div class="mb-4 flex flex-col gap-2">
+                    <label>Дата начала действия:</label>
+                    <input type="date" @bind="GiftStartDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" class="rounded border px-4 py-2" />
+                    <label>Дата окончания действия:</label>
+                    <input type="date" @bind="GiftEndDate" min="@GiftStartDate?.ToString("yyyy-MM-dd")" class="rounded border px-4 py-2" />
+                    <label>Количество:</label>
+                    <input type="number" @bind="GiftCount" min="1" max="10" class="rounded border px-4 py-2 w-24 mx-auto" />
+                </div>
+            }
+            else
+            {
+                <h2 class="text-xl font-bold mb-4">Выберите дату исполнения услуги</h2>
+                <div class="mb-4">
+                    <input type="date" @bind="ExecutionDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" class="rounded border px-4 py-2" />
+                </div>
+            }
+            <button class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-2 rounded-xl font-bold mr-2" @onclick="ConfirmBuy">Купить</button>
+            <button class="bg-gray-200 px-6 py-2 rounded-xl font-bold text-gray-600" @onclick="() => ShowBuyModal = false">Отмена</button>
+        </div>
+    </div>
+}

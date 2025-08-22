@@ -1,0 +1,142 @@
+@page "/gallery"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Web
+
+@code {
+    class PhotoDto
+    {
+        public int Id { get; set; }
+        public string FileName { get; set; } = string.Empty;
+        public DateTime UploadedAt { get; set; }
+        public int UserId { get; set; }
+        public string? Url => $"/uploads/{FileName}";
+    }
+    List<PhotoDto> Photos = new();
+    int UserId = 0;
+    string? Error;
+    bool IsUploading = false;
+    bool IsLightboxOpen = false;
+    int LightboxIndex = 0;
+    List<PhotoDto> OrderedPhotos => Photos.OrderByDescending(p => p.UploadedAt).ToList();
+    int SafeLightboxIndex
+        => OrderedPhotos.Count == 0
+            ? 0
+            : (LightboxIndex < 0 ? 0 : (LightboxIndex >= OrderedPhotos.Count ? OrderedPhotos.Count - 1 : LightboxIndex));
+    protected override async Task OnInitializedAsync()
+    {
+        var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        int.TryParse(userIdStr, out UserId);
+        Photos = await Http.GetFromJsonAsync<List<PhotoDto>>("/api/photos") ?? new();
+    }
+    async Task UploadFiles(ChangeEventArgs e)
+    {
+        try
+        {
+            IsUploading = true;
+            if (e.Value is not null)
+            {
+                // Работаем через стандартный input multiple и FormData
+                await JS.InvokeVoidAsync("uploadGalleryFiles");
+                Photos = await Http.GetFromJsonAsync<List<PhotoDto>>("/api/photos") ?? new();
+            }
+        }
+        catch
+        {
+            Error = "Не удалось загрузить фото";
+        }
+        finally { IsUploading = false; }
+    }
+    async Task DeletePhoto(int id)
+    {
+        var resp = await Http.DeleteAsync($"/api/photos/{id}");
+        if (resp.IsSuccessStatusCode)
+        {
+            Photos = await Http.GetFromJsonAsync<List<PhotoDto>>("/api/photos") ?? new();
+            if (IsLightboxOpen)
+            {
+                var cnt = OrderedPhotos.Count;
+                if (cnt == 0) { IsLightboxOpen = false; }
+                else if (LightboxIndex >= cnt) { LightboxIndex = cnt - 1; }
+            }
+        }
+        else Error = "Не удалось удалить фото";
+    }
+    void OpenLightbox(int index)
+    {
+        var cnt = OrderedPhotos.Count;
+        if (cnt == 0) return;
+        LightboxIndex = index < 0 ? 0 : (index >= cnt ? cnt - 1 : index);
+        IsLightboxOpen = true;
+    }
+    void CloseLightbox() => IsLightboxOpen = false;
+    void NextPhoto()
+    {
+        var count = OrderedPhotos.Count;
+        if (count == 0) return;
+        LightboxIndex = (LightboxIndex + 1) % count;
+    }
+    void PrevPhoto()
+    {
+        var count = OrderedPhotos.Count;
+        if (count == 0) return;
+        LightboxIndex = (LightboxIndex - 1 + count) % count;
+    }
+    void OnLightboxKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseLightbox();
+        else if (e.Key == "ArrowRight") NextPhoto();
+        else if (e.Key == "ArrowLeft") PrevPhoto();
+    }
+}
+
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
+    <div class="max-w-5xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
+        <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
+            <h1 class="text-3xl font-bold text-pink-600 flex items-center gap-2">
+                <span class="inline-block text-4xl">📸</span> Наша фотогалерея
+            </h1>
+            <label class="relative inline-flex items-center cursor-pointer group" title="Загрузить фото">
+                <input type="file" accept="image/*" multiple class="hidden" @onchange="UploadFiles" />
+                <span class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center transition transform group-hover:scale-105 active:scale-95 group-hover:shadow-pink-300/70" aria-label="Загрузить фото">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 7h3.5l1.5-2h6l1.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
+                        <circle cx="12" cy="13" r="3.5" />
+                        <path d="M12 5v2" />
+                    </svg>
+                    <span class="sr-only">Загрузить</span>
+                </span>
+            </label>
+        </div>
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="text-red-500 mb-4">@Error</div>
+        }
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            @for (var i = 0; i < OrderedPhotos.Count; i++)
+            {
+                var p = OrderedPhotos[i];
+                <div class="relative group rounded-xl overflow-hidden shadow-lg bg-white cursor-zoom-in" @onclick="@(e => OpenLightbox(i))">
+                    <img src="@p.Url" alt="photo" class="w-full h-44 object-cover group-hover:scale-105 transition-transform" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition flex items-end">
+                        <div class="w-full flex items-center justify-between p-2 text-white text-xs">
+                            <span>@p.UploadedAt.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                            <button class="bg-red-500/80 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center" @onclick:stopPropagation="true" @onclick="() => DeletePhoto(p.Id)">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+        @if (IsLightboxOpen && OrderedPhotos.Count > 0)
+        {
+            <div id="lightbox" tabindex="0" class="fixed inset-0 bg-black/80 flex items-center justify-center select-none" style="z-index:9999;" @onclick="CloseLightbox" @onkeydown="OnLightboxKey">
+                <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl" @onclick:stopPropagation="true" @onclick="PrevPhoto">‹</button>
+                <img src="@OrderedPhotos[SafeLightboxIndex].Url" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl" @onclick:stopPropagation="true" />
+                <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl" @onclick:stopPropagation="true" @onclick="NextPhoto">›</button>
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/40 px-3 py-1 rounded-full">
+                    @OrderedPhotos[SafeLightboxIndex].UploadedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                </div>
+            </div>
+        }
+    </div>
+</div>

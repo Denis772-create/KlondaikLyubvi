@@ -1,0 +1,45 @@
+﻿@page "/"
+
+@inject IJSRuntime JS
+
+@code {
+    string? Greeting;
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        if (userId == "2") // Лиза
+            Greeting = "Добро пожаловать, <b>Любимая</b>!<br>Это наше личное романтическое пространство";
+        else if (userId == "1") // Денис
+            Greeting = "Добро пожаловать, <b>Денис</b>!<br>Это ваше личное романтическое пространство";
+        else
+            Greeting = "Добро пожаловать!<br>Ваше личное романтическое пространство";
+    }
+}
+
+<div class="bg-gradient-to-br from-pink-100 to-red-200 min-h-screen flex items-center justify-center font-sans">
+    <div class="w-full max-w-2xl p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl text-center">
+        <div class="flex items-center justify-center gap-3 mb-4">
+            <span class="text-4xl">💖</span>
+            <span class="text-5xl font-extrabold text-pink-600 drop-shadow">Кландайк Любви</span>
+            <span class="text-4xl">💖</span>
+        </div>
+        <div class="text-lg md:text-xl mb-8 text-gray-700">
+            @((MarkupString)Greeting)
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            <a href="/gallery" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-400 to-pink-500 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
+                <span class="text-2xl">📸</span> Галерея
+            </a>
+            <a href="/love" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-500 to-pink-600 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
+                <span class="text-2xl">📝</span> Признания
+            </a>
+            <a href="/invites" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-300 to-pink-400 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
+                <span class="text-2xl">🎟️</span> Приглашения
+            </a>
+            <a href="/store" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-200 to-pink-300 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
+                <span class="text-2xl">💋</span> Магазин любви
+            </a>
+        </div>
+        <footer class="text-xs text-gray-500 mt-4">Создано с любовью ❤️</footer>
+    </div>
+</div>

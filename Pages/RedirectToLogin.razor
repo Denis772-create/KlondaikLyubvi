@@ -1,0 +1,13 @@
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        if (string.IsNullOrEmpty(userId))
+        {
+            Nav.NavigateTo("/login", true);
+        }
+    }
+}

@@ -1,0 +1,211 @@
+@page "/calendar"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+@code {
+    class CalEvent { public int Id { get; set; } public DateTime Date { get; set; } public string Title { get; set; } = string.Empty; public string Emoji { get; set; } = ""; public string Type { get; set; } = ""; public string? Description { get; set; } }
+    int UserId = 0;
+    DateTime Current = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    Dictionary<int, List<CalEvent>> EventsByDay = new();
+    int? SelectedDay = null;
+    bool ShowDayModal = false;
+    int Page = 1;
+    int PageSize = 6;
+    string ViewMode = "month"; // month | week
+    DateTime WeekStart => Current.AddDays(-((int)Current.DayOfWeek + 6) % 7); // Monday-first
+    int CurrentWeekOfMonth
+        => (int)Math.Ceiling((Current.Day + (FirstDayOffset)) / 7.0);
+    int FirstDayOffset => ((int)new DateTime(Current.Year, Current.Month, 1).DayOfWeek + 6) % 7; // Monday-first
+    async Task Load()
+    {
+        var uid = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        int.TryParse(uid, out UserId);
+        var url = $"/api/calendar/{(UserId==0?1:UserId)}?year={Current.Year}&month={Current.Month}";
+        var raw = await Http.GetFromJsonAsync<List<Dictionary<string, System.Text.Json.JsonElement>>>(url) ?? new();
+        EventsByDay.Clear();
+        foreach (var e in raw)
+        {
+            var dt = DateTime.Parse(e["date"].GetString() ?? DateTime.UtcNow.ToString("o")).ToLocalTime();
+
+            var id = 0;
+            if (e.TryGetValue("id", out var idEl))
+            {
+                if (idEl.ValueKind == System.Text.Json.JsonValueKind.Number) id = idEl.GetInt32();
+                else if (idEl.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(idEl.GetString(), out var eid)) id = eid;
+            }
+
+            var title = e.TryGetValue("title", out var tEl) ? (tEl.GetString() ?? string.Empty) : string.Empty;
+            var emoji = e.TryGetValue("emoji", out var emEl) ? (emEl.GetString() ?? string.Empty) : string.Empty;
+            var type = e.TryGetValue("type", out var tyEl) ? (tyEl.GetString() ?? string.Empty) : string.Empty;
+            string? description = null;
+            if (e.TryGetValue("description", out var dEl) && dEl.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                description = dEl.GetString();
+            }
+
+            var ev = new CalEvent {
+                Id = id,
+                Date = dt,
+                Title = title,
+                Emoji = emoji,
+                Type = type,
+                Description = description
+            };
+            var day = dt.Day;
+            if (!EventsByDay.ContainsKey(day)) EventsByDay[day] = new();
+            EventsByDay[day].Add(ev);
+        }
+    }
+    protected override async Task OnInitializedAsync() => await Load();
+    async Task Prev()
+    {
+        if (ViewMode == "month") { Current = Current.AddMonths(-1); }
+        else { Current = Current.AddDays(-7); }
+        await Load();
+    }
+    async Task Next()
+    {
+        if (ViewMode == "month") { Current = Current.AddMonths(1); }
+        else { Current = Current.AddDays(7); }
+        await Load();
+    }
+    void Today()
+    {
+        if (ViewMode == "month") Current = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        else Current = DateTime.Today.AddDays(-((int)DateTime.Today.DayOfWeek + 6) % 7); // Monday-first align
+    }
+    void OpenDay(int day) { SelectedDay = day; Page = 1; ShowDayModal = true; }
+    IEnumerable<CalEvent> PagedEvents => SelectedDay == null || !EventsByDay.ContainsKey(SelectedDay.Value)
+        ? Enumerable.Empty<CalEvent>()
+        : EventsByDay[SelectedDay.Value].OrderBy(x => x.Date).Skip((Page-1)*PageSize).Take(PageSize);
+    int TotalPages => SelectedDay == null || !EventsByDay.ContainsKey(SelectedDay.Value)
+        ? 1
+        : (int)Math.Ceiling(EventsByDay[SelectedDay.Value].Count / (double)PageSize);
+    void OpenEvent(CalEvent e)
+    {
+        if (e.Type == "invite") Nav.NavigateTo("/invites");
+        else Nav.NavigateTo("/store");
+        ShowDayModal = false;
+    }
+}
+
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
+    <div class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-3xl font-bold text-pink-600 flex items-center gap-2">
+                <span class="inline-block text-4xl">📅</span> Календарь сюрпризов
+            </h1>
+            <div class="flex items-center gap-2">
+                <button class="px-3 py-2 rounded-full @(ViewMode=="month"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "month"; })'>Месяц</button>
+                <button class="px-3 py-2 rounded-full @(ViewMode=="week"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "week"; })'>Неделя</button>
+                <div class="w-px h-6 bg-pink-200 mx-1"></div>
+                <button class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Prev">◀</button>
+                <div class="px-3 py-2 font-semibold">@Current.ToString(ViewMode=="month"?"MMMM yyyy":"dd.MM.yyyy")</div>
+                <button class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Next">▶</button>
+                <button class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="Today">Сегодня</button>
+            </div>
+        </div>
+        <div class="grid grid-cols-7 gap-3 mb-3 text-center text-xs text-gray-500">
+            <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+        </div>
+        <div class="grid grid-cols-7 gap-3">
+            @if (ViewMode == "month")
+            {
+                @for (int i = 0; i < FirstDayOffset; i++)
+                {
+                    <div></div>
+                }
+                @for (int i = 0; i < DateTime.DaysInMonth(Current.Year, Current.Month); i++)
+                {
+                    var day = i + 1;
+                    var isToday = DateTime.Today.Year == Current.Year && DateTime.Today.Month == Current.Month && DateTime.Today.Day == day;
+                    <div class="rounded-2xl border border-pink-100 bg-white shadow-sm p-3 min-h-[90px] cursor-pointer hover:shadow" @onclick="() => OpenDay(day)">
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="w-8 h-8 flex items-center justify-center rounded-full @(isToday?"bg-pink-500 text-white":"bg-pink-50 text-pink-700")">@day</div>
+                            <div class="text-xs text-gray-400">@((EventsByDay.ContainsKey(day)?EventsByDay[day].Count:0))</div>
+                        </div>
+                        @if (EventsByDay.ContainsKey(day))
+                        {
+                            foreach (var e in EventsByDay[day].Take(3))
+                            {
+                                var color = e.Type=="invite"?"text-rose-600":(e.Type=="gift"?"text-yellow-700":"text-pink-700");
+                                <div class="text-xs truncate @color" title="@e.Title">@e.Emoji @e.Title</div>
+                            }
+                            if (EventsByDay[day].Count > 3)
+                            {
+                                <div class="text-xs text-gray-400">+@((EventsByDay[day].Count - 3)) ещё</div>
+                            }
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                var startOfWeek = Current.AddDays(-((int)Current.DayOfWeek + 6) % 7); // Monday-first
+                @for (int d = 0; d < 7; d++)
+                {
+                    var date = startOfWeek.AddDays(d);
+                    var day = date.Day;
+                var isToday = DateTime.Today.Year == Current.Year && DateTime.Today.Month == Current.Month && DateTime.Today.Day == day;
+                    <div class="rounded-2xl border border-pink-100 bg-white shadow-sm p-3 min-h-[90px] cursor-pointer hover:shadow" @onclick="() => OpenDay(day)">
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="w-8 h-8 flex items-center justify-center rounded-full @(isToday?"bg-pink-500 text-white":"bg-pink-50 text-pink-700")">@day</div>
+                            <div class="text-xs text-gray-400">@((EventsByDay.ContainsKey(day)?EventsByDay[day].Count:0))</div>
+                        </div>
+                        @if (EventsByDay.ContainsKey(day))
+                        {
+                            foreach (var e in EventsByDay[day].Take(5))
+                            {
+                                var color = e.Type=="invite"?"text-rose-600":(e.Type=="gift"?"text-yellow-700":"text-pink-700");
+                                <div class="text-xs truncate @color" title="@e.Title">@e.Emoji @e.Title</div>
+                            }
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@if (ShowDayModal && SelectedDay != null)
+{
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @onclick="() => ShowDayModal=false">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md" @onclick:stopPropagation="true">
+            <h2 class="text-xl font-bold mb-4">События @SelectedDay.@Current.Month.@Current.Year</h2>
+            @if (EventsByDay.ContainsKey(SelectedDay.Value))
+            {
+                        foreach (var e in PagedEvents)
+                {
+                    var tag = e.Type=="invite"?"bg-rose-100 text-rose-700":(e.Type=="gift"?"bg-yellow-100 text-yellow-800":"bg-pink-100 text-pink-700");
+                            <div class="flex items-start gap-2 mb-2 p-2 rounded @tag cursor-pointer hover:opacity-90" @onclick="() => OpenEvent(e)">
+                        <div class="text-xl">@e.Emoji</div>
+                        <div class="flex-1">
+                            <div class="font-semibold">@e.Title</div>
+                                    <div class="text-xs text-gray-500">@e.Date.ToString("HH:mm")</div>
+                                    @if (!string.IsNullOrWhiteSpace(e.Description))
+                                    {
+                                        <div class="text-xs text-gray-500">@e.Description</div>
+                                    }
+                        </div>
+                    </div>
+                }
+                        @if (TotalPages > 1)
+                        {
+                            <div class="flex items-center justify-center gap-2 mt-2">
+                                <button class="px-3 py-1 rounded bg-pink-100 hover:bg-pink-200 disabled:opacity-50" disabled="@(Page<=1)" @onclick="() => { if(Page>1) Page--; }">◀</button>
+                                <span class="text-sm">@Page / @TotalPages</span>
+                                <button class="px-3 py-1 rounded bg-pink-100 hover:bg-pink-200 disabled:opacity-50" disabled="@(Page>=TotalPages)" @onclick="() => { if(Page<TotalPages) Page++; }">▶</button>
+                            </div>
+                        }
+            }
+            else
+            {
+                <div class="text-gray-400">Нет событий</div>
+            }
+            <div class="text-right mt-4"><button class="px-4 py-2 rounded-xl bg-gray-200" @onclick="() => ShowDayModal=false">Закрыть</button></div>
+        </div>
+    </div>
+}
+
+

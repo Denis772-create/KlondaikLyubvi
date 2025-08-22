@@ -1,0 +1,120 @@
+@page "/invites"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@code {
+    class InviteDto
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public DateTime Date { get; set; }
+        public string Emoji { get; set; } = "🎟️";
+        public int CreatedByUserId { get; set; }
+    }
+    List<InviteDto> InviteList = new();
+    int UserId = 0;
+    string? Error;
+    bool ShowModal = false;
+    string NewTitle = "";
+    string? NewDescription = null;
+    DateTime NewDate = DateTime.Today;
+    TimeOnly? NewTime = TimeOnly.FromDateTime(DateTime.Now);
+    string NewEmoji = "🌌";
+    const string TabMy = "my";
+    const string TabPartner = "partner";
+    const string TabAll = "all";
+    string ActiveTab = TabMy; // my | partner | all
+    IEnumerable<InviteDto> MyInvites => InviteList.Where(i => i.CreatedByUserId == UserId).OrderBy(x => x.Date);
+    IEnumerable<InviteDto> PartnerInvites => InviteList.Where(i => i.CreatedByUserId != UserId).OrderBy(x => x.Date);
+    protected override async Task OnInitializedAsync()
+    {
+        var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        int.TryParse(userIdStr, out UserId);
+        InviteList = await Http.GetFromJsonAsync<List<InviteDto>>("/api/invites") ?? new();
+    }
+    async Task CreateInvite()
+    {
+        Error = null;
+        var dateTime = NewDate.Date;
+        if (NewTime.HasValue)
+            dateTime = dateTime.Add(NewTime.Value.ToTimeSpan());
+        var resp = await Http.PostAsJsonAsync("/api/invites", new { Title = NewTitle, Description = NewDescription, Date = dateTime, UserId = UserId });
+        if (resp.IsSuccessStatusCode)
+        {
+            InviteList = await Http.GetFromJsonAsync<List<InviteDto>>("/api/invites") ?? new();
+            ShowModal = false; NewTitle = ""; NewDescription = null; NewEmoji = "🌌"; NewDate = DateTime.Today; NewTime = TimeOnly.FromDateTime(DateTime.Now);
+        }
+        else Error = "Не удалось создать приглашение";
+    }
+    async Task DeleteInvite(int id)
+    {
+        var reason = await JS.InvokeAsync<string>("prompt", "Укажите причину отмены (необязательно):");
+        var url = string.IsNullOrWhiteSpace(reason) ? $"/api/invites/{id}" : $"/api/invites/{id}?reason={Uri.EscapeDataString(reason)}";
+        var resp = await Http.DeleteAsync(url);
+        if (resp.IsSuccessStatusCode)
+        {
+            InviteList = await Http.GetFromJsonAsync<List<InviteDto>>("/api/invites") ?? new();
+        }
+    }
+}
+
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
+    <div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-3xl font-bold text-pink-600 flex items-center gap-2">
+                <span class="inline-block text-4xl">🎟️</span> Приглашения
+            </h1>
+            <button id="invites-add" class="rounded-full w-12 h-12 bg-pink-500 hover:bg-pink-600 text-white text-2xl shadow" @onclick="() => ShowModal = true">＋</button>
+        </div>
+        <p class="text-center text-gray-600 mb-6">Приглашайте друг друга на романтические события ✨</p>
+        <div class="flex gap-2 justify-center mb-6">
+            <button class="px-4 py-2 rounded-full text-sm font-semibold @(ActiveTab==TabMy?"bg-pink-500 text-white":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabMy">Мои (@MyInvites.Count())</button>
+            <button class="px-4 py-2 rounded-full text-sm font-semibold @(ActiveTab==TabPartner?"bg-pink-500 text-white":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabPartner">Партнёра (@PartnerInvites.Count())</button>
+            <button class="px-4 py-2 rounded-full text-sm font-semibold @(ActiveTab==TabAll?"bg-pink-500 text-white":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabAll">Все (@InviteList.Count)</button>
+        </div>
+        <div class="space-y-5">
+            @foreach (var i in (ActiveTab==TabMy ? MyInvites : ActiveTab==TabPartner ? PartnerInvites : InviteList.OrderBy(x => x.Date)))
+            {
+                <div class="flex items-center gap-4 bg-gradient-to-r from-pink-100 to-rose-50 rounded-xl shadow-lg p-5">
+                    <div class="flex-shrink-0 text-3xl">@i.Emoji</div>
+                    <div class="flex-1">
+                        <div class="text-lg font-semibold text-pink-700">@i.Title</div>
+                        <div class="text-gray-400 text-sm">@i.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="bg-pink-200 text-pink-700 px-3 py-1 rounded-full font-bold text-sm shadow">@i.Date.ToLocalTime().ToString("HH:mm")</span>
+                        <button class="text-red-500 hover:text-red-600" title="Удалить" @onclick="() => DeleteInvite(i.Id)">🗑</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (ShowModal)
+{
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Новое приглашение</h2>
+            <div class="flex flex-col gap-3">
+                <input class="rounded border px-3 py-2" placeholder="Название" @bind="NewTitle" />
+                <input class="rounded border px-3 py-2" placeholder="Описание (необязательно)" @bind="NewDescription" />
+                <div class="flex gap-2 items-center">
+                    <span>Дата:</span>
+                    <input type="date" class="rounded border px-3 py-2" @bind="NewDate" />
+                    <input type="time" class="rounded border px-3 py-2" @bind="NewTime" />
+                </div>
+                <div class="flex gap-2 items-center">
+                    <span>Эмодзи:</span>
+                    <input class="rounded border px-3 py-2 w-24" @bind="NewEmoji" />
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <button class="px-4 py-2 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold" @onclick="CreateInvite">Создать</button>
+                    <button class="px-4 py-2 rounded-xl bg-gray-200" @onclick="() => ShowModal = false">Отмена</button>
+                </div>
+                @if (!string.IsNullOrEmpty(Error)) { <div class="text-red-500">@Error</div>; }
+            </div>
+        </div>
+    </div>
+}
