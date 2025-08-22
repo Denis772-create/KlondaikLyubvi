@@ -70,7 +70,7 @@ app.MapPost("/api/lovenotes", async (KlondaikLyubvi.Shared.LoveNoteDto dto, Love
     // TODO: получить userId из куки/сессии
     int userId = dto.UserId;
     var note = await service.AddAsync(userId, dto.Text);
-    return new KlondaikLyubvi.Shared.LoveNoteDto
+    return new LoveNoteDto
     {
         Id = note.Id,
         Text = note.Text,
