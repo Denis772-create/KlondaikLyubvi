@@ -34,7 +34,11 @@ jobs:
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          username: ${{ secrets.SSH_USER }}   # ДОЛЖЕН быть 'app'
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script: sudo /usr/bin/systemctl restart myapp
+          script: |
+            whoami
+            command -v systemctl
+            sudo -n /usr/bin/systemctl restart myapp && echo "restarted"
+
