@@ -30,8 +30,9 @@ jobs:
           echo "Built at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" > publish/buildinfo.txt
           echo "Commit: $GITHUB_SHA" >> publish/buildinfo.txt
 
-      # Останавливаем сервис (только тут sudo)
-      - name: Stop service
+      # Останавливаем сервис (sudo только для systemctl) и чистим целевую папку,
+      # НО сохраняем конфиги и БД-файлы (db/wal/shm/sqlite/sqlite3)
+      - name: Stop service and clean target dir (keep DB & appsettings)
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -42,11 +43,17 @@ jobs:
             set -e
             sudo -n /usr/bin/systemctl stop myapp || true
             mkdir -p /var/www/myapp
-            # Чистим папку БЕЗ sudo — у app есть права
+            # НЕ удаляем appsettings* и SQLite-файлы
             find /var/www/myapp -mindepth 1 -maxdepth 1 \
-              ! -name 'appsettings*.json' -exec rm -rf {} +
+              ! -name 'appsettings*.json' \
+              ! -name '*.db' \
+              ! -name '*.db-wal' \
+              ! -name '*.db-shm' \
+              ! -name '*.sqlite' \
+              ! -name '*.sqlite3' \
+              -exec rm -rf {} +
 
-      # Копируем свежие артефакты
+      # Копируем свежие артефакты (раскладываем содержимое publish/ прямо в /var/www/myapp/)
       - name: Copy files to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -54,10 +61,11 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "publish/*"
+          source: "publish/**"
           target: "/var/www/myapp/"
+          strip_components: 1
 
-      # Стартуем и проверяем
+      # Стартуем и быстрая проверка
       - name: Start & smoke check
         uses: appleboy/ssh-action@v0.1.7
         with:
