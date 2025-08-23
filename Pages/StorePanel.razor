@@ -1,10 +1,18 @@
 @page "/storepanel"
 @inject HttpClient Http
 @inject IJSRuntime JS
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 
 @code {
     class StoreItemDto {
         public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public int Price { get; set; }
+        public string Emoji { get; set; } = string.Empty;
+    }
+    class TemplateItem {
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public int Price { get; set; }
@@ -15,6 +23,36 @@
     string? NewDescription;
     int NewPrice = 1;
     string NewEmoji = "💖";
+    // Emoji picker state
+    bool ShowEmojiPickerAdd = false;
+    bool ShowEmojiPickerEdit = false;
+    int? EmojiEditForId = null;
+    string ActiveEmojiCategory = "Любовь";
+    Dictionary<string, string[]> EmojiCategories = new()
+    {
+        ["Любовь"] = new [] { "😍","🥰","😘","😻","💖","💗","💓","💞","💕","💘","💝","💟","💋","💌","🌹","🌸","🫶","🤍","🩷","🫦" },
+        ["Эмоции"] = new [] { "😊","😇","😌","😎","😂","🤣","😅","😉","🤗","🙈","🥹","😭","🤔","🤭","🤩","🥳" },
+        ["Еда"] = new [] { "🍓","🍫","🍰","🍩","🍪","🧁","🍯","🍎","🍒","🍇","🥐","🥞","☕","🍷" },
+        ["Разное"] = new [] { "🎁","🎉","✨","🔥","🌙","⭐","☀️","🛁","🎥","🎵","📸","🏖️" }
+    };
+    DotNetObjectReference<StorePanel>? _selfRef;
+    List<TemplateItem> Templates = new()
+    {
+        new TemplateItem { Name = "Массаж спины (20 мин)", Description = "Расслабляющий массаж от любимого человека", Price = 5, Emoji = "💆‍♀️" },
+        new TemplateItem { Name = "Завтрак в постель", Description = "Кофе, тосты и улыбка", Price = 4, Emoji = "🍳" },
+        new TemplateItem { Name = "Вечер фильмов", Description = "Выбор фильма, плед и объятия", Price = 3, Emoji = "🎥" },
+        new TemplateItem { Name = "Совместная ванна", Description = "Свечи, музыка и расслабление вдвоём", Price = 7, Emoji = "🛁" },
+        new TemplateItem { Name = "Чайная церемония", Description = "Тёплый чай и беседа по душам", Price = 2, Emoji = "🍵" },
+        new TemplateItem { Name = "Прогулка под звёздами", Description = "Небольшой вечерний променад", Price = 2, Emoji = "🌙" },
+        new TemplateItem { Name = "Десерт-сюрприз", Description = "Твой любимый сладкий перекус", Price = 3, Emoji = "🍰" },
+        new TemplateItem { Name = "Пакет обнимашек", Description = "10 минут самых тёплых объятий", Price = 1, Emoji = "🤗" },
+        new TemplateItem { Name = "Домашний SPA", Description = "Масочки, музыка и ароматные свечи", Price = 6, Emoji = "🧖‍♀️" },
+        new TemplateItem { Name = "Прогулка с кофе", Description = "Кофе навынос и разговоры", Price = 2, Emoji = "☕" },
+        new TemplateItem { Name = "Настольные игры", Description = "Играем вдвоём вечером", Price = 2, Emoji = "🎲" },
+        new TemplateItem { Name = "Йога для двоих", Description = "Лёгкая растяжка и дыхание", Price = 3, Emoji = "🧘‍♀️" },
+        new TemplateItem { Name = "Ужин при свечах", Description = "Простой ужин + свечи и музыка", Price = 5, Emoji = "🍷" },
+        new TemplateItem { Name = "Мини-путешествие", Description = "Сюрприз-маршрут по району", Price = 5, Emoji = "🧭" },
+    };
     int UserId = 0;
     string? Message;
     bool ShowAddModal = false;
@@ -58,6 +96,56 @@
             Message = "Ошибка!";
         }
     }
+    void ApplyTemplate(TemplateItem t)
+    {
+        NewName = t.Name;
+        NewDescription = t.Description;
+        NewPrice = t.Price;
+        NewEmoji = t.Emoji;
+    }
+    void ToggleAddEmojiPicker()
+    {
+        ShowEmojiPickerAdd = !ShowEmojiPickerAdd;
+        if (ShowEmojiPickerAdd)
+        {
+            _selfRef ??= DotNetObjectReference.Create(this);
+            JS.InvokeVoidAsync("registerClickOutsideById", "emoji-picker-add", _selfRef);
+        }
+        else
+        {
+            JS.InvokeVoidAsync("unregisterClickOutsideById", "emoji-picker-add");
+        }
+    }
+    void ToggleEditEmojiPicker(int itemId)
+    {
+        if (EmojiEditForId != itemId || !ShowEmojiPickerEdit)
+        {
+            EmojiEditForId = itemId;
+            ShowEmojiPickerEdit = true;
+            _selfRef ??= DotNetObjectReference.Create(this);
+            JS.InvokeVoidAsync("registerClickOutsideById", $"emoji-picker-edit-{itemId}", _selfRef);
+        }
+        else
+        {
+            ShowEmojiPickerEdit = false;
+            JS.InvokeVoidAsync("unregisterClickOutsideById", $"emoji-picker-edit-{itemId}");
+        }
+    }
+    void InsertEmojiAdd(string e) { NewEmoji = e; ShowEmojiPickerAdd = false; JS.InvokeVoidAsync("unregisterClickOutsideById", "emoji-picker-add"); }
+    void InsertEmojiEdit(string e) { EditEmoji = e; ShowEmojiPickerEdit = false; if (EmojiEditForId != null) JS.InvokeVoidAsync("unregisterClickOutsideById", $"emoji-picker-edit-{EmojiEditForId}"); }
+    [JSInvokable]
+    public void CloseEmojiPicker()
+    {
+        if (ShowEmojiPickerAdd || ShowEmojiPickerEdit)
+        {
+            ShowEmojiPickerAdd = false; ShowEmojiPickerEdit = false; StateHasChanged();
+        }
+    }
+    public ValueTask DisposeAsync()
+    {
+        _selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
     StoreItemDto? EditItemLocal = null;
     void StartEdit(StoreItemDto item) {
         EditItemLocal = item;
@@ -97,12 +185,49 @@
     {
         <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-center mx-2 sm:mx-auto">
-                <h2 class="text-xl font-bold mb-4">Добавить товар</h2>
-                <div class="flex flex-col gap-2 mb-4">
+                <h2 class="text-xl font-bold mb-3">Добавить товар</h2>
+                <div class="mb-4">
+                    <div class="text-left text-sm text-gray-500 mb-2">Быстрый выбор из идей</div>
+                    <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                        @foreach (var t in Templates)
+                        {
+                            <button class="flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-pink-50 text-left" @onclick="() => ApplyTemplate(t)">
+                                <span class="text-xl">@t.Emoji</span>
+                                <div class="min-w-0">
+                                    <div class="font-semibold truncate">@t.Name</div>
+                                    <div class="text-xs text-gray-500 truncate">@t.Description</div>
+                                </div>
+                                <span class="ml-auto text-pink-600 font-bold text-sm">@t.Price 💋</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2 mb-4 relative">
                     <input class="rounded border px-3 py-2" placeholder="Название" @bind="NewName" />
                     <input class="rounded border px-3 py-2" placeholder="Описание" @bind="NewDescription" />
                     <input class="rounded border px-3 py-2" type="number" min="1" placeholder="Цена (💋)" @bind="NewPrice" />
-                    <input class="rounded border px-3 py-2 w-24 mx-auto" placeholder="Emoji" @bind="NewEmoji" />
+                    <div class="flex items-center gap-2 justify-center">
+                        <input class="rounded border px-3 py-2 w-24 text-center" placeholder="Emoji" @bind="NewEmoji" />
+                        <button type="button" class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="ToggleAddEmojiPicker">Выбрать</button>
+                    </div>
+                    @if (ShowEmojiPickerAdd)
+                    {
+                        <div id="emoji-picker-add" class="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-[min(100%,360px)] bg-white rounded-2xl shadow-2xl p-2 border border-pink-100 select-none">
+                            <div class="flex gap-1 mb-2 overflow-x-auto">
+                                @foreach (var cat in EmojiCategories.Keys)
+                                {
+                                    var isActive = cat == ActiveEmojiCategory;
+                                    <button type="button" class="@(isActive ? "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-500 text-white" : "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveEmojiCategory = cat">@cat</button>
+                                }
+                            </div>
+                            <div class="grid grid-cols-8 gap-1 max-h-56 overflow-y-auto text-center">
+                                @foreach (var e in EmojiCategories[ActiveEmojiCategory])
+                                {
+                                    <button type="button" class="text-xl hover:scale-125 transition" @onclick="() => InsertEmojiAdd(e)">@e</button>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
                 @if (!string.IsNullOrEmpty(Message))
                 {
@@ -136,11 +261,32 @@
             </div>
             @if (EditItemLocal != null && EditItemLocal.Id == item.Id)
             {
-                <div class="bg-white rounded-xl shadow p-4 mt-2 flex flex-col gap-2">
+                <div class="bg-white rounded-xl shadow p-4 mt-2 flex flex-col gap-2 relative">
                     <input class="rounded border px-3 py-2" placeholder="Название" @bind="EditName" />
                     <input class="rounded border px-3 py-2" placeholder="Описание" @bind="EditDescription" />
                     <input class="rounded border px-3 py-2" type="number" min="1" placeholder="Цена (💋)" @bind="EditPrice" />
-                    <input class="rounded border px-3 py-2 w-24" placeholder="Emoji" @bind="EditEmoji" />
+                    <div class="flex items-center gap-2">
+                        <input class="rounded border px-3 py-2 w-24 text-center" placeholder="Emoji" @bind="EditEmoji" />
+                        <button type="button" class="px-3 py-2 rounded-xl bg-pink-100 hover:bg-pink-200" @onclick="() => ToggleEditEmojiPicker(item.Id)">Выбрать</button>
+                    </div>
+                    @if (ShowEmojiPickerEdit && EmojiEditForId == item.Id)
+                    {
+                        <div id="@($"emoji-picker-edit-{item.Id}")" class="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-[min(100%,360px)] bg-white rounded-2xl shadow-2xl p-2 border border-pink-100 select-none">
+                            <div class="flex gap-1 mb-2 overflow-x-auto">
+                                @foreach (var cat in EmojiCategories.Keys)
+                                {
+                                    var isActive = cat == ActiveEmojiCategory;
+                                    <button type="button" class="@(isActive ? "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-500 text-white" : "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveEmojiCategory = cat">@cat</button>
+                                }
+                            </div>
+                            <div class="grid grid-cols-8 gap-1 max-h-56 overflow-y-auto text-center">
+                                @foreach (var e in EmojiCategories[ActiveEmojiCategory])
+                                {
+                                    <button type="button" class="text-xl hover:scale-125 transition" @onclick="() => InsertEmojiEdit(e)">@e</button>
+                                }
+                            </div>
+                        </div>
+                    }
                     <div class="flex gap-2">
                         <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-bold" @onclick="SaveEdit">Сохранить</button>
                         <button class="bg-gray-200 px-4 py-2 rounded font-bold" @onclick="() => EditItemLocal = null">Отмена</button>
