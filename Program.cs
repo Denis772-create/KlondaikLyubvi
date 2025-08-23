@@ -95,6 +95,15 @@ app.MapPost("/api/lovenotes", async (HttpContext ctx, KlondaikLyubvi.Shared.Love
     };
 });
 
+app.MapPut("/api/lovenotes/{id}", async (int id, [FromBody] KlondaikLyubvi.Shared.LoveNoteDto dto, AppDbContext db) =>
+{
+    var note = await db.LoveNotes.FindAsync(id);
+    if (note == null) return Results.NotFound();
+    note.Text = dto.Text ?? string.Empty;
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
 app.MapPost("/api/login", async (HttpContext ctx, [FromBody] LoginRequest req, AuthService auth) =>
 {
     var userId = await auth.ValidateUserAsync(req.UserName, req.Password);

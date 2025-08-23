@@ -9,6 +9,15 @@
     <title>Клондайк Любви</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @@media (max-width: 640px) {
+            #store-fab {
+                top: auto !important;
+                right: 16px !important;
+                bottom: 96px !important; /* above bottom nav */
+            }
+        }
+    </style>
     <script>
         // Early stub so the help button always does something, even if main tour script not yet ready
         if (!window.triggerOnboarding) {
@@ -134,7 +143,7 @@
         <button id="admin-fab" style="display:none;position:fixed;top:24px;right:24px;z-index:1000;background:white;border-radius:50%;box-shadow:0 2px 8px #eab; width:56px;height:56px;align-items:center;justify-content:center;border:none;outline:none;" onclick="location.href='/admin'">
             <span style="font-size:2rem;color:#d9468f;">🛠️</span>
         </button>
-        <button id="store-fab" class="hidden sm:block" style="position:fixed;top:24px;right:90px;z-index:1000;background:white;border-radius:50%;box-shadow:0 2px 8px #eab; width:56px;height:56px;align-items:center;justify-content:center;border:none;outline:none;" onclick="location.href='/storepanel'">
+        <button id="store-fab" style="position:fixed;top:24px;right:90px;z-index:1000;background:white;border-radius:50%;box-shadow:0 2px 8px #eab; width:56px;height:56px;align-items:center;justify-content:center;border:none;outline:none;" onclick="location.href='/storepanel'">
             <span style="font-size:2rem;color:#d9468f;">🛒</span>
         </button>
     </div>
@@ -158,7 +167,7 @@
             <span class="text-2xl">🎟️</span>
         </a>
     </nav>
-    <button id="help-fab" title="Экскурсия по приложению" style="position:fixed;bottom:24px;left:24px;z-index:1000;background:white;border-radius:50%;box-shadow:0 2px 8px #eab; width:52px;height:52px;align-items:center;justify-content:center;border:none;outline:none;display:flex;" onclick="window.triggerOnboarding && window.triggerOnboarding()">❔</button>
+    
     <script src="_framework/blazor.server.js"></script>
     <script>
         window.blazorGetCookie = function (name) {
@@ -255,258 +264,7 @@
         window.getLocal = function(key){ try { return localStorage.getItem(key) || ''; } catch { return ''; } }
         window.setLocal = function(key, value){ try { localStorage.setItem(key, value); } catch {} }
 
-        // --- Onboarding (first-time guided tour) ---
-        (function(){
-            const STORAGE_KEY_DONE = 'onboardingDone_v1';
-            const STORAGE_KEY_STEP = 'onb_step_v1';
-            const STORAGE_KEY_UID = 'onb_uid_v1';
-            const overlayId = 'onb-overlay';
-
-            function getUserId(){
-                try { return window.blazorGetCookie ? window.blazorGetCookie('userId') || '' : ''; } catch { return ''; }
-            }
-            function perUserKey(base){
-                const uid = getUserId() || 'guest';
-                return base + '_' + uid;
-            }
-
-            function ensureOverlayElements(){
-                let root = document.getElementById(overlayId);
-                if (root) return root;
-                root = document.createElement('div');
-                root.id = overlayId;
-                root.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;';
-                const mask = document.createElement('div');
-                mask.id = 'onb-mask';
-                mask.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.15);pointer-events:none';
-                const highlight = document.createElement('div');
-                highlight.id = 'onb-highlight';
-                highlight.style.cssText = 'position:absolute;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.55), 0 8px 28px rgba(0,0,0,.35);background:transparent;pointer-events:none;transition:all .25s ease';
-                const tip = document.createElement('div');
-                tip.id = 'onb-tooltip';
-                tip.style.cssText = 'position:fixed;top:16px;right:16px;max-width:360px;background:white;border-radius:14px;padding:10px 12px;box-shadow:0 10px 30px rgba(233,100,140,.35);border:1px solid #fecdd3;color:#4b5563;font-family:system-ui,-apple-system,Segoe UI,Roboto;z-index:10000;';
-                tip.innerHTML = '<div id="onb-text" style="font-size:14px;line-height:1.35;margin-bottom:10px"></div>'+
-                                 '<div style="display:flex;gap:8px;justify-content:flex-end">'+
-                                 '  <button id="onb-skip" style="background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;padding:6px 10px;font-weight:600">Пропустить</button>'+
-                                 '  <button id="onb-prev" style="background:#fee2e2;color:#ef4444;border:none;border-radius:10px;padding:6px 10px;font-weight:600;display:none">Назад</button>'+
-                                 '  <button id="onb-next" style="background:#ec4899;color:white;border:none;border-radius:10px;padding:6px 10px;font-weight:700">Далее</button>'+
-                                 '</div>';
-                root.appendChild(mask);
-                root.appendChild(highlight);
-                root.appendChild(tip);
-                document.body.appendChild(root);
-                return root;
-            }
-
-            function placeTooltipNear(_targetRect){
-                // Toast style fixed at the top-right: nothing to compute
-                const tip = document.getElementById('onb-tooltip');
-                tip.style.top = '16px';
-                tip.style.right = '16px';
-                tip.style.left = 'auto';
-            }
-
-            function highlightElement(el){
-                const rect = el.getBoundingClientRect();
-                const hl = document.getElementById('onb-highlight');
-                const pad = 6;
-                hl.style.top = (window.scrollY + rect.top - pad) + 'px';
-                hl.style.left = (window.scrollX + rect.left - pad) + 'px';
-                hl.style.width = (rect.width + pad*2) + 'px';
-                hl.style.height = (rect.height + pad*2) + 'px';
-                // Position tooltip
-                const tip = document.getElementById('onb-tooltip');
-                tip.style.visibility = 'hidden';
-                tip.style.display = 'block';
-                requestAnimationFrame(() => {
-                    placeTooltipNear(rect);
-                    tip.style.visibility = 'visible';
-                });
-                el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
-            }
-
-            function waitForSelector(selector, timeoutMs){
-                return new Promise((resolve) => {
-                    const existing = document.querySelector(selector);
-                    if (existing) return resolve(existing);
-                    const start = Date.now();
-                    const obs = new MutationObserver(() => {
-                        const el = document.querySelector(selector);
-                        if (el) { obs.disconnect(); resolve(el); }
-                    });
-                    obs.observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
-                    const tick = () => {
-                        if (Date.now() - start > timeoutMs) { obs.disconnect(); resolve(document.body); }
-                        else setTimeout(tick, 150);
-                    };
-                    tick();
-                });
-            }
-
-            function isVisible(el){
-                if (!el) return false;
-                const style = window.getComputedStyle(el);
-                const rect = el.getBoundingClientRect();
-                return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-            }
-
-            const steps = [
-                { id: 'welcome', whenPath: '/', selector: 'body', text: 'Добро пожаловать в «Кландайк Любви»! Покажу ключевые разделы и как ими пользоваться.' },
-                { id: 'home_gallery', whenPath: '/', selector: 'a[href="/gallery"]', text: 'Нажмите «Галерея», чтобы перейти к общим фото.', requireClick: true },
-                { id: 'gallery_info', whenPath: '/gallery', selector: 'label[title="Загрузить фото"]', text: 'Здесь вы загружаете фото. Откройте любое на весь экран с возможностью листать.' },
-                { id: 'to_love', whenPath: '/gallery', selector: '#main-nav a[href="/love"]', text: 'Теперь нажмите «💌» внизу — перейдём в «Признания».', requireClick: true },
-                { id: 'love_info', whenPath: '/love', selector: 'input[placeholder="Добавить признание..."]', text: 'Пишите тёплые слова и добавляйте эмодзи. Ваши записи появятся ниже.' },
-                { id: 'to_store', whenPath: '/love', selector: '#main-nav a[href="/store"]', text: 'Нажмите «💋» внизу — это «Магазин любви».', requireClick: true },
-                { id: 'store_info', whenPath: '/store', selector: '#store-balance', text: 'Здесь виден баланс 💋 и список услуг. Можно купить себе или подарить партнёру.' },
-                { id: 'to_calendar', whenPath: '/store', selector: '#main-nav a[href="/calendar"]', text: 'Нажмите «📅» — посмотрим календарик любви.', requireClick: true },
-                { id: 'calendar_info', whenPath: '/calendar', selector: 'h1.text-3xl', text: 'Календарик любви показывает запланированные исполнения, приглашения и активные подарки.' },
-                { id: 'to_invites', whenPath: '/calendar', selector: '#main-nav a[href="/invites"]', text: 'Нажмите «🎟️» — перейдём к приглашениям.', requireClick: true },
-                { id: 'invites_info', whenPath: '/invites', selector: '#invites-add', text: 'Создавайте романтические события — укажите название, дату и время.' },
-                { id: 'done', whenPath: '/love', selector: 'body', text: 'Готово! Нажмите «❔» слева внизу, чтобы повторить тур когда угодно.' }
-            ];
-
-            // Public trigger: starts now if available; otherwise reloads with ?onb=1
-            window.triggerOnboarding = function(){
-                if (window.Onboarding && typeof window.Onboarding.start === 'function') {
-                    window.Onboarding.start(true);
-                } else {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('onb','1');
-                    window.location.href = url.toString();
-                }
-            };
-
-            const api = {
-                start(force){
-                    const root = ensureOverlayElements();
-                    const uidKey = perUserKey(STORAGE_KEY_DONE);
-                    const stepKey = perUserKey(STORAGE_KEY_STEP);
-                    if (!force && window.getLocal(uidKey) === '1') return;
-                    root.style.display = 'block';
-                    const cur = parseInt(sessionStorage.getItem(stepKey) || '0', 10) || 0;
-                    api._index = cur;
-                    runStep();
-                },
-                stop(markDone){
-                    try {
-                        document.getElementById(overlayId).style.display = 'none';
-                    } catch {}
-                    if (markDone) window.setLocal(perUserKey(STORAGE_KEY_DONE), '1');
-                    sessionStorage.removeItem(perUserKey(STORAGE_KEY_STEP));
-                },
-                next(){ api._index++; sessionStorage.setItem(perUserKey(STORAGE_KEY_STEP), String(api._index)); runStep(); },
-                prev(){ if (api._index > 0) { api._index--; sessionStorage.setItem(perUserKey(STORAGE_KEY_STEP), String(api._index)); runStep(); } },
-                _index: 0
-            };
-
-            function setContent(text){
-                const tipText = document.getElementById('onb-text');
-                if (tipText) tipText.textContent = text;
-            }
-
-            let _clickCleanup = null;
-            function detachClick(){ if (_clickCleanup) { try { _clickCleanup(); } catch {} _clickCleanup = null; } }
-
-            async function runStep(){
-                const idx = api._index;
-                if (idx < 0 || idx >= steps.length){ api.stop(true); return; }
-                const step = steps[idx];
-
-                // Navigate to required path if needed
-                if (step.whenPath && window.location.pathname !== step.whenPath){
-                    // Persist and navigate
-                    sessionStorage.setItem(perUserKey(STORAGE_KEY_STEP), String(idx));
-                    window.location.href = step.whenPath;
-                    return;
-                }
-
-                const root = ensureOverlayElements();
-                root.style.display = 'block';
-                setContent(step.text);
-                document.getElementById('onb-prev').style.display = idx > 0 ? 'inline-block' : 'none';
-                // Find target (after potential navigation)
-                let target = await waitForSelector(step.selector, 10000);
-                // As a fallback, try to hop to the page via nav link if selector not yet available
-                if (!target || !isVisible(target)){
-                    const link = document.querySelector(`a[href='${step.whenPath}']`);
-                    if (link && window.location.pathname !== step.whenPath){
-                        sessionStorage.setItem(perUserKey(STORAGE_KEY_STEP), String(idx));
-                        link.click();
-                        return;
-                    }
-                }
-                if (step.optional && (!target || !isVisible(target))) { api.next(); return; }
-                const el = isVisible(target) ? target : document.body;
-                highlightElement(el);
-
-                // If this step asks user to click the target, attach a one-time handler
-                detachClick();
-                if (step.requireClick && el && el !== document.body){
-                    const stepKey = perUserKey(STORAGE_KEY_STEP);
-                    const onClick = () => {
-                        // Persist next step index before navigation happens
-                        sessionStorage.setItem(stepKey, String(idx + 1));
-                        // Do not prevent default; allow navigation naturally
-                        setTimeout(() => {
-                            // If navigation does not happen (same page), move forward ourselves
-                            if (api._index === idx) api.next();
-                        }, 150);
-                    };
-                    el.addEventListener('click', onClick, { once: true, capture: true });
-                    _clickCleanup = () => el.removeEventListener('click', onClick, { capture: true });
-                }
-            }
-
-            function wireButtons(){
-                const root = ensureOverlayElements();
-                root.addEventListener('click', (e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    if (target.id === 'onb-next') api.next();
-                    else if (target.id === 'onb-prev') api.prev();
-                    else if (target.id === 'onb-skip') api.stop(true);
-                });
-                window.addEventListener('resize', () => {
-                    // Re-run current step placement
-                    const hl = document.getElementById('onb-highlight');
-                    if (hl && document.getElementById(overlayId).style.display !== 'none') runStep();
-                });
-            }
-
-            wireButtons();
-            window.Onboarding = api;
-
-            // Immediate force start when ?onb=1 is present (most deterministic)
-            try {
-                const u0 = new URL(window.location.href);
-                const isLogin = window.location.pathname === '/login';
-                if (!isLogin && u0.searchParams.get('onb') === '1'){
-                    u0.searchParams.delete('onb');
-                    try { history.replaceState(null, '', u0.toString()); } catch {}
-                    api.start(true);
-                }
-            } catch {}
-
-            function tryAutoStart(){
-                const uidKey = perUserKey(STORAGE_KEY_DONE);
-                const stepKey = perUserKey(STORAGE_KEY_STEP);
-                const url = new URL(window.location.href);
-                const forceFlag = url.searchParams.get('onb') === '1';
-                const hasSavedProgress = !!sessionStorage.getItem(stepKey);
-                const onLoginPage = window.location.pathname === '/login';
-                const shouldStart = !onLoginPage && (forceFlag || localStorage.getItem(uidKey) !== '1' || hasSavedProgress);
-                const shouldForce = forceFlag || hasSavedProgress;
-                if (shouldStart) {
-                    if (forceFlag) {
-                        try { url.searchParams.delete('onb'); history.replaceState(null, '', url.toString()); } catch {}
-                    }
-                    api.start(shouldForce);
-                }
-            }
-            setTimeout(tryAutoStart, 300);
-            document.addEventListener('DOMContentLoaded', () => setTimeout(tryAutoStart, 200));
-            window.addEventListener('popstate', () => setTimeout(tryAutoStart, 200));
-        })();
+        
     </script>
 </body>
 </html>

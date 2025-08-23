@@ -90,13 +90,13 @@
     }
 }
 
-<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-6 px-2 sm:py-10 sm:px-4 font-sans">
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen pt-6 pb-20 px-2 sm:py-10 sm:px-4 font-sans">
     <div class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-4 sm:p-6">
         <div class="flex items-center justify-between mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-pink-600 flex items-center gap-2">
                 <span class="inline-block text-3xl sm:text-4xl">📅</span> Календарик любви
             </h1>
-            <div class="flex items-center gap-2 flex-wrap">
+            <div class="hidden sm:flex items-center gap-2 flex-wrap">
                 <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-full @(ViewMode=="month"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "month"; })'>Месяц</button>
                 <button class="px-2 py-1 sm:px-3 sm:py-2 rounded-full @(ViewMode=="week"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700 hover:bg-pink-200")" @onclick='@(() => { ViewMode = "week"; })'>Неделя</button>
                 <div class="w-px h-6 bg-pink-200 mx-1"></div>
@@ -166,6 +166,14 @@
                 }
             }
             </div>
+        </div>
+        <div class="sm:hidden mt-3 bg-white/95 backdrop-blur rounded-full shadow-lg border border-pink-200 px-3 py-2 flex items-center gap-2 w-max mx-auto">
+            <button class="px-2 py-1 rounded-full @(ViewMode=="month"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700")" @onclick='@(() => { ViewMode = "month"; })'>Мес</button>
+            <button class="px-2 py-1 rounded-full @(ViewMode=="week"?"bg-pink-500 text-white":"bg-pink-100 text-pink-700")" @onclick='@(() => { ViewMode = "week"; })'>Нед</button>
+            <div class="w-px h-5 bg-pink-200 mx-1"></div>
+            <button class="px-2 py-1 rounded-xl bg-pink-100" @onclick="Prev">◀</button>
+            <button class="px-2 py-1 rounded-xl bg-pink-100" @onclick="Next">▶</button>
+            <button class="px-2 py-1 rounded-xl bg-pink-100" @onclick="Today">Сегодня</button>
         </div>
     </div>
 </div>
