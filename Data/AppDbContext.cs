@@ -11,6 +11,7 @@ namespace KlondaikLyubvi.Data
         public DbSet<StoreItem> StoreItems { get; set; }
         public DbSet<Event> Events { get; set; }
         public DbSet<LoveCoinTransaction> LoveCoinTransactions { get; set; }
+        public DbSet<WishlistItem> WishlistItems { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -108,5 +109,23 @@ namespace KlondaikLyubvi.Data
         public DateTime? GiftStartDate { get; set; }
         public DateTime? GiftEndDate { get; set; }
         public int GiftCount { get; set; } = 1;
+    }
+
+    public class WishlistItem
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public User? User { get; set; }
+        public string Occasion { get; set; } = string.Empty; // e.g., "День рождения", "Новый год"
+        public string Url { get; set; } = string.Empty;
+        public string? Title { get; set; } // custom title by user
+        public string? Note { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        // Resolved metadata
+        public string? MetaTitle { get; set; }
+        public string? MetaDescription { get; set; }
+        public string? MetaImage { get; set; }
+        public string? MetaSiteName { get; set; }
+        public string? MetaUrl { get; set; }
     }
 } 

@@ -20,6 +20,7 @@ builder.Services.AddSingleton<TelegramService>();
 builder.Services.AddScoped<LoveNoteService>();
 builder.Services.AddScoped<LoveStoreService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<WishlistService>();
 // HttpClient for Blazor Server: resolve BaseAddress from NavigationManager within scoped lifetime
 builder.Services.AddScoped<HttpClient>(sp =>
 {
@@ -430,5 +431,49 @@ app.MapDelete("/api/invites/{id}", async (int id, HttpRequest request, AppDbCont
     await telegram.SendMessageAsync(creatorId, $"❗ Ты отменил(а) «{ev.Title}». Мы предупредили {partner?.DisplayName ?? "партнёра"}.");
 
     return Results.Ok();
+});
+
+// Wishlist endpoints
+app.MapGet("/api/wishlist/{userId}", async (int userId, WishlistService svc) =>
+{
+    var list = await svc.GetForUserAsync(userId);
+    return Results.Ok(list.Select(w => new {
+        w.Id,
+        w.UserId,
+        w.Occasion,
+        w.Url,
+        w.Title,
+        w.Note,
+        w.CreatedAt,
+        w.MetaTitle,
+        w.MetaDescription,
+        w.MetaImage,
+        w.MetaSiteName,
+        w.MetaUrl
+    }));
+});
+
+app.MapPost("/api/wishlist", async ([FromBody] KlondaikLyubvi.Models.WishlistCreateDto dto, WishlistService svc) =>
+{
+    var item = await svc.AddAsync(dto.UserId, dto.Occasion, dto.Url, dto.Title, dto.Note);
+    return Results.Ok(item);
+});
+
+app.MapPut("/api/wishlist/{id}", async (int id, [FromBody] KlondaikLyubvi.Models.WishlistCreateDto dto, WishlistService svc) =>
+{
+    var ok = await svc.UpdateAsync(id, dto.Occasion, dto.Title, dto.Note);
+    return ok ? Results.Ok() : Results.NotFound();
+});
+
+app.MapPost("/api/wishlist/{id}/refresh", async (int id, WishlistService svc) =>
+{
+    var ok = await svc.RefreshMetadataAsync(id);
+    return ok ? Results.Ok() : Results.NotFound();
+});
+
+app.MapDelete("/api/wishlist/{id}", async (int id, WishlistService svc) =>
+{
+    var ok = await svc.DeleteAsync(id);
+    return ok ? Results.Ok() : Results.NotFound();
 });
 app.Run();

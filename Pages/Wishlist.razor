@@ -1,0 +1,169 @@
+@page "/wishlist"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@code {
+    class WishlistItemDto
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public string Occasion { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public string? Title { get; set; }
+        public string? Note { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string? MetaTitle { get; set; }
+        public string? MetaDescription { get; set; }
+        public string? MetaImage { get; set; }
+        public string? MetaSiteName { get; set; }
+        public string? MetaUrl { get; set; }
+    }
+    List<WishlistItemDto> Items = new();
+    int UserId = 0;
+    string Occasion = "Любой";
+    string Url = string.Empty;
+    string? Title = null;
+    string? Note = null;
+    string? Error = null;
+
+    string FilterOccasion = "all"; // all | birthday | newyear | other
+    string Query = string.Empty;
+
+    IEnumerable<WishlistItemDto> Filtered
+        => Items
+            .Where(i => FilterOccasion == "all" || (FilterOccasion == "birthday" ? i.Occasion.Contains("день", StringComparison.OrdinalIgnoreCase) : FilterOccasion == "newyear" ? i.Occasion.Contains("нов", StringComparison.OrdinalIgnoreCase) : true))
+            .Where(i => string.IsNullOrWhiteSpace(Query)
+                || (i.Title ?? i.MetaTitle ?? string.Empty).Contains(Query, StringComparison.OrdinalIgnoreCase)
+                || (i.MetaDescription ?? string.Empty).Contains(Query, StringComparison.OrdinalIgnoreCase)
+                || i.Occasion.Contains(Query, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uid = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        int.TryParse(uid, out UserId);
+        Items = await Http.GetFromJsonAsync<List<WishlistItemDto>>($"/api/wishlist/{UserId}") ?? new();
+    }
+
+    async Task Add()
+    {
+        Error = null;
+        if (string.IsNullOrWhiteSpace(Url)) { Error = "Введите ссылку"; return; }
+        var resp = await Http.PostAsJsonAsync("/api/wishlist", new { userId = UserId, occasion = Occasion, url = Url, title = Title, note = Note });
+        if (resp.IsSuccessStatusCode)
+        {
+            var item = await resp.Content.ReadFromJsonAsync<WishlistItemDto>();
+            if (item != null) Items.Insert(0, item);
+            Url = string.Empty; Title = null; Note = null; Occasion = "Любой";
+        }
+        else Error = "Не удалось добавить";
+    }
+
+    async Task Delete(int id)
+    {
+        var resp = await Http.DeleteAsync($"/api/wishlist/{id}");
+        if (resp.IsSuccessStatusCode)
+        {
+            var it = Items.FirstOrDefault(x => x.Id == id);
+            if (it != null) Items.Remove(it);
+        }
+    }
+
+    async Task Refresh(int id)
+    {
+        await Http.PostAsync($"/api/wishlist/{id}/refresh", null);
+        Items = await Http.GetFromJsonAsync<List<WishlistItemDto>>($"/api/wishlist/{UserId}") ?? new();
+    }
+
+    string DisplayTitle(WishlistItemDto w)
+        => !string.IsNullOrWhiteSpace(w.Title) ? w.Title!
+           : !string.IsNullOrWhiteSpace(w.MetaTitle) ? w.MetaTitle!
+           : (HostFor(w) ?? w.Url);
+
+    string? HostFor(WishlistItemDto w)
+    {
+        try { return new Uri(w.MetaUrl ?? w.Url).Host; } catch { return null; }
+    }
+
+    string? FaviconFor(WishlistItemDto w)
+    {
+        try { var u = new Uri(w.MetaUrl ?? w.Url); return $"{u.Scheme}://{u.Host}/favicon.ico"; } catch { return null; }
+    }
+}
+
+<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-8 px-4 font-sans">
+    <div class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-6">
+        <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
+            <h1 class="text-3xl font-extrabold text-pink-600 flex items-center gap-2">
+                <span class="text-4xl">🌟</span> Wishlist
+            </h1>
+            <div class="flex gap-2">
+                <input class="rounded-2xl border border-pink-200 bg-white/80 px-4 py-2 text-sm shadow-inner" placeholder="Поиск..." @bind="Query" />
+                <select class="rounded-2xl border border-pink-200 bg-white/80 px-3 py-2 text-sm shadow-inner" @bind="FilterOccasion">
+                    <option value="all">Все</option>
+                    <option value="birthday">Дни рождения</option>
+                    <option value="newyear">Новый год</option>
+                    <option value="other">Другое</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-4 sm:p-5 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input class="rounded-xl border px-3 py-2" placeholder="Повод (например, День рождения)" @bind="Occasion" />
+                <input class="rounded-xl border px-3 py-2 md:col-span-2" placeholder="Ссылка (https://...)" @bind="Url" />
+                <input class="rounded-xl border px-3 py-2" placeholder="Название (необязательно)" @bind="Title" />
+                <input class="rounded-xl border px-3 py-2 md:col-span-2" placeholder="Заметка (необязательно)" @bind="Note" />
+            </div>
+            <div class="flex items-center gap-3 mt-3">
+                <button class="bg-pink-500 hover:bg-pink-600 text-white px-5 py-2 rounded-xl font-semibold" @onclick="Add">Добавить</button>
+                @if (!string.IsNullOrEmpty(Error)) { <span class="text-red-500 text-sm">@Error</span>; }
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            @foreach (var w in Filtered)
+            {
+                <div class="rounded-2xl overflow-hidden shadow group bg-gradient-to-br from-pink-50 to-rose-50 border border-pink-100">
+                    @if (!string.IsNullOrEmpty(w.MetaImage))
+                    {
+                        <div class="h-40 w-full bg-gray-100 overflow-hidden">
+                            <img src="@w.MetaImage" alt="preview" class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
+                        </div>
+                    }
+                    <div class="p-4 flex flex-col gap-2">
+                        <div class="text-xs text-pink-500 font-bold">@w.Occasion</div>
+                        <a href="@(w.MetaUrl ?? w.Url)" target="_blank" class="text-lg font-extrabold text-gray-800 hover:text-pink-600 line-clamp-2 flex items-center gap-2">
+                            @if (!string.IsNullOrEmpty(FaviconFor(w)))
+                            {
+                                <img src="@FaviconFor(w)" alt="icon" class="w-5 h-5 rounded-sm" />
+                            }
+                            @DisplayTitle(w)
+                        </a>
+                        @if (!string.IsNullOrEmpty(w.MetaDescription))
+                        {
+                            <div class="text-sm text-gray-600 line-clamp-3">@w.MetaDescription</div>
+                        }
+                        @if (!string.IsNullOrEmpty(w.Note))
+                        {
+                            <div class="text-sm text-gray-500">📝 @w.Note</div>
+                        }
+                        <div class="flex items-center justify-between pt-2">
+                            <span class="text-xs text-gray-400">@w.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</span>
+                            <div class="flex items-center gap-2">
+                                <button class="text-xs px-3 py-1 rounded-full bg-white border border-pink-200 hover:bg-pink-50" title="Обновить превью" @onclick="() => Refresh(w.Id)">Обновить</button>
+                                <button class="text-xs px-3 py-1 rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" title="Удалить" @onclick="() => Delete(w.Id)">Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+</style>
+
+
