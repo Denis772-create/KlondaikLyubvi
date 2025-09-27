@@ -25,9 +25,14 @@
     string? Title = null;
     string? Note = null;
     string? Error = null;
+    string? Success = null;
 
     string FilterOccasion = "all"; // all | birthday | newyear | other
     string Query = string.Empty;
+    string Priority = "medium"; // low | medium | high
+    
+    // Модальное окно
+    bool ShowAddModal = false;
 
     IEnumerable<WishlistItemDto> Filtered
         => Items
@@ -44,16 +49,33 @@
         Items = await Http.GetFromJsonAsync<List<WishlistItemDto>>($"/api/wishlist/{UserId}") ?? new();
     }
 
+    void OpenAddModal()
+    {
+        Url = string.Empty;
+        Title = null;
+        Note = null;
+        Occasion = "Любой";
+        Priority = "medium";
+        Error = null;
+        ShowAddModal = true;
+    }
+
     async Task Add()
     {
         Error = null;
+        Success = null;
         if (string.IsNullOrWhiteSpace(Url)) { Error = "Введите ссылку"; return; }
-        var resp = await Http.PostAsJsonAsync("/api/wishlist", new { userId = UserId, occasion = Occasion, url = Url, title = Title, note = Note });
+        
+        var resp = await Http.PostAsJsonAsync("/api/wishlist", new { userId = UserId, occasion = Occasion, url = Url, title = Title, note = Note, priority = Priority });
         if (resp.IsSuccessStatusCode)
         {
             var item = await resp.Content.ReadFromJsonAsync<WishlistItemDto>();
-            if (item != null) Items.Insert(0, item);
-            Url = string.Empty; Title = null; Note = null; Occasion = "Любой";
+            if (item != null) 
+            {
+                Items.Insert(0, item);
+                Success = "Желание добавлено!";
+                ShowAddModal = false;
+            }
         }
         else Error = "Не удалось добавить";
     }
@@ -92,14 +114,34 @@
 
 <div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-8 px-4 font-sans">
     <div class="max-w-4xl mx-auto bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-6">
+        <!-- Заголовок и управление -->
         <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
-            <h1 class="text-3xl font-extrabold text-pink-600 flex items-center gap-2">
-                <span class="text-4xl">🌟</span> Wishlist
-            </h1>
-            <div class="flex gap-2">
-                <input class="rounded-2xl border border-pink-200 bg-white/80 px-4 py-2 text-sm shadow-inner" placeholder="Поиск..." @bind="Query" />
-                <select class="rounded-2xl border border-pink-200 bg-white/80 px-3 py-2 text-sm shadow-inner" @bind="FilterOccasion">
-                    <option value="all">Все</option>
+            <div>
+                <h1 class="text-3xl font-extrabold text-pink-600 flex items-center gap-2">
+                    <span class="text-4xl">🌟</span> Wishlist
+                </h1>
+                <p class="text-gray-600 text-sm mt-1">Сохраняйте желания и мечты</p>
+            </div>
+            <button @onclick="OpenAddModal" class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-xl font-semibold transition flex items-center gap-2">
+                ➕ Добавить желание
+            </button>
+        </div>
+
+        <!-- Уведомления -->
+        @if (!string.IsNullOrEmpty(Success))
+        {
+            <div class="mb-4 p-4 bg-green-100 border border-green-300 text-green-700 rounded-xl flex justify-between items-center">
+                <span>@Success</span>
+                <button @onclick="() => Success = null" class="text-green-500 hover:text-green-700">✕</button>
+            </div>
+        }
+
+        <!-- Фильтры -->
+        <div class="bg-white rounded-2xl shadow-lg p-4 mb-6">
+            <div class="flex gap-3 flex-wrap">
+                <input class="flex-1 min-w-[200px] rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="Поиск по названию, описанию..." @bind="Query" />
+                <select class="rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400" @bind="FilterOccasion">
+                    <option value="all">Все поводы</option>
                     <option value="birthday">Дни рождения</option>
                     <option value="newyear">Новый год</option>
                     <option value="other">Другое</option>
@@ -107,20 +149,21 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow p-4 sm:p-5 mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input class="rounded-xl border px-3 py-2" placeholder="Повод (например, День рождения)" @bind="Occasion" />
-                <input class="rounded-xl border px-3 py-2 md:col-span-2" placeholder="Ссылка (https://...)" @bind="Url" />
-                <input class="rounded-xl border px-3 py-2" placeholder="Название (необязательно)" @bind="Title" />
-                <input class="rounded-xl border px-3 py-2 md:col-span-2" placeholder="Заметка (необязательно)" @bind="Note" />
+        <!-- Список желаний -->
+        @if (!Filtered.Any())
+        {
+            <div class="text-center py-12 bg-white/60 rounded-2xl">
+                <div class="text-6xl mb-4">🌟</div>
+                <h3 class="text-xl font-semibold text-gray-700 mb-2">Список желаний пуст</h3>
+                <p class="text-gray-500 mb-4">Добавьте первое желание!</p>
+                <button @onclick="OpenAddModal" class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-xl font-semibold transition">
+                    ➕ Добавить желание
+                </button>
             </div>
-            <div class="flex items-center gap-3 mt-3">
-                <button class="bg-pink-500 hover:bg-pink-600 text-white px-5 py-2 rounded-xl font-semibold" @onclick="Add">Добавить</button>
-                @if (!string.IsNullOrEmpty(Error)) { <span class="text-red-500 text-sm">@Error</span>; }
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        }
+        else
+        {
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             @foreach (var w in Filtered)
             {
                 <div class="rounded-2xl overflow-hidden shadow group bg-gradient-to-br from-pink-50 to-rose-50 border border-pink-100">
@@ -157,9 +200,78 @@
                     </div>
                 </div>
             }
-        </div>
+            </div>
+        }
     </div>
 </div>
+
+<!-- Модальное окно добавления желания -->
+@if (ShowAddModal)
+{
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @onclick="() => ShowAddModal = false">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto" @onclick:stopPropagation="true">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Добавить желание</h3>
+            
+            @if (!string.IsNullOrEmpty(Error))
+            {
+                <div class="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
+                    @Error
+                </div>
+            }
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ссылка *</label>
+                    <input type="url" @bind="Url" class="w-full rounded-lg border-2 border-pink-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" 
+                           placeholder="https://example.com/product" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Повод</label>
+                    <select @bind="Occasion" class="w-full rounded-lg border-2 border-pink-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400">
+                        <option value="Любой">Любой повод</option>
+                        <option value="День рождения">День рождения</option>
+                        <option value="Новый год">Новый год</option>
+                        <option value="8 марта">8 марта</option>
+                        <option value="14 февраля">14 февраля</option>
+                        <option value="Годовщина">Годовщина</option>
+                        <option value="Просто так">Просто так</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Приоритет</label>
+                    <select @bind="Priority" class="w-full rounded-lg border-2 border-pink-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400">
+                        <option value="low">🟢 Низкий</option>
+                        <option value="medium">🟡 Средний</option>
+                        <option value="high">🔴 Высокий</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Название (необязательно)</label>
+                    <input type="text" @bind="Title" class="w-full rounded-lg border-2 border-pink-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" 
+                           placeholder="Красивое платье" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Заметка (необязательно)</label>
+                    <textarea @bind="Note" class="w-full rounded-lg border-2 border-pink-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 resize-none" 
+                              rows="3" placeholder="Дополнительные пожелания..."></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button @onclick="Add" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white py-2 rounded-lg font-semibold transition">
+                    Добавить
+                </button>
+                <button @onclick="() => ShowAddModal = false" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 <style>
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

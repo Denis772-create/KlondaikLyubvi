@@ -33,3 +33,29 @@ public class ServiceOfferCreateDto
     public string Emoji { get; set; } = "💝";
     public string Category { get; set; } = "Общее";
 }
+
+public class ReactionRequest
+{
+    public string Emoji { get; set; } = "";
+    public int UserId { get; set; }
+}
+
+public class TagRequest
+{
+    public string Tag { get; set; } = "";
+}
+
+public class CaptionRequest
+{
+    public string Caption { get; set; } = "";
+}
+
+public class CalendarEventRequest
+{
+    public int UserId { get; set; }
+    public string Title { get; set; } = "";
+    public DateTime Date { get; set; }
+    public string Emoji { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string? Description { get; set; }
+}

@@ -33,6 +33,13 @@
     Dictionary<int, string> PhotoCaptions = new();
     HashSet<int> FavoritePhotos = new();
     
+    // Модальные окна
+    bool ShowTagModal = false;
+    bool ShowCaptionModal = false;
+    int SelectedPhotoId = 0;
+    string NewTag = string.Empty;
+    string NewCaption = string.Empty;
+    
     List<PhotoDto> FilteredPhotos
     {
         get
@@ -201,6 +208,46 @@
         SelectedTag = "all";
         ShowFavoritesOnly = false;
     }
+
+    void OpenTagModal(int photoId)
+    {
+        SelectedPhotoId = photoId;
+        NewTag = string.Empty;
+        ShowTagModal = true;
+    }
+
+    void OpenCaptionModal(int photoId)
+    {
+        SelectedPhotoId = photoId;
+        NewCaption = PhotoCaptions.ContainsKey(photoId) ? PhotoCaptions[photoId] : string.Empty;
+        ShowCaptionModal = true;
+    }
+
+    void AddNewTag()
+    {
+        if (!string.IsNullOrWhiteSpace(NewTag) && SelectedPhotoId > 0)
+        {
+            AddTag(SelectedPhotoId, NewTag.Trim());
+            NewTag = string.Empty;
+            ShowTagModal = false;
+        }
+    }
+
+    void SaveCaption()
+    {
+        if (SelectedPhotoId > 0)
+        {
+            if (string.IsNullOrWhiteSpace(NewCaption))
+            {
+                PhotoCaptions.Remove(SelectedPhotoId);
+            }
+            else
+            {
+                SetCaption(SelectedPhotoId, NewCaption.Trim());
+            }
+            ShowCaptionModal = false;
+        }
+    }
 }
 
 <div class="bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100 min-h-screen py-6 px-4 font-sans">
@@ -211,7 +258,7 @@
                 <span class="text-4xl animate-pulse">📸</span>
                 <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
                     Галерея Воспоминаний
-                </h1>
+            </h1>
                 <span class="text-4xl animate-pulse">✨</span>
             </div>
             <p class="text-gray-600 mb-4 text-sm sm:text-base">Сохраняйте особенные моменты вашей истории любви</p>
@@ -267,16 +314,16 @@
                 </button>
                 
                 <!-- Загрузка -->
-                <label class="relative inline-flex items-center cursor-pointer group" title="Загрузить фото">
-                    <input type="file" accept="image/*" multiple class="hidden" @onchange="UploadFiles" />
+            <label class="relative inline-flex items-center cursor-pointer group" title="Загрузить фото">
+                <input type="file" accept="image/*" multiple class="hidden" @onchange="UploadFiles" />
                     <span class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg flex items-center gap-2 transition transform group-hover:scale-105 active:scale-95 font-semibold text-sm">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 7h3.5l1.5-2h6l1.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
-                            <circle cx="12" cy="13" r="3.5" />
-                        </svg>
+                        <path d="M4 7h3.5l1.5-2h6l1.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
+                        <circle cx="12" cy="13" r="3.5" />
+                    </svg>
                         Загрузить
-                    </span>
-                </label>
+                </span>
+            </label>
             </div>
             
             <!-- Активные фильтры -->
@@ -381,6 +428,16 @@
                                 }
                             </div>
                         }
+                        
+                        <!-- Кнопки управления -->
+                        <div class="flex gap-1 mb-2">
+                            <button @onclick="() => OpenTagModal(p.Id)" class="flex-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded transition" title="Добавить тег">
+                                🏷️ Тег
+                            </button>
+                            <button @onclick="() => OpenCaptionModal(p.Id)" class="flex-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded transition" title="Изменить подпись">
+                                ✏️ Подпись
+                            </button>
+                        </div>
                         
                         <!-- Метаинформация -->
                         <div class="flex items-center justify-between text-xs text-gray-500">
@@ -509,3 +566,71 @@
     to { opacity: 1; }
 }
 </style>
+
+<!-- Модальное окно добавления тега -->
+@if (ShowTagModal)
+{
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @onclick="() => ShowTagModal = false">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full" @onclick:stopPropagation="true">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Добавить тег</h3>
+            
+            <div class="mb-4">
+                <input type="text" @bind="NewTag" @onkeypress="@(async (e) => { if (e.Key == "Enter") AddNewTag(); })" 
+                       class="w-full rounded-lg border-2 border-pink-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" 
+                       placeholder="Введите тег..." maxlength="20" />
+            </div>
+
+            <!-- Существующие теги для этого фото -->
+            @if (PhotoTags.ContainsKey(SelectedPhotoId) && PhotoTags[SelectedPhotoId].Any())
+            {
+                <div class="mb-4">
+                    <div class="text-sm text-gray-600 mb-2">Текущие теги:</div>
+                    <div class="flex flex-wrap gap-1">
+                        @foreach (var tag in PhotoTags[SelectedPhotoId])
+                        {
+                            <span class="bg-pink-100 text-pink-700 px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                                #@tag
+                                <button @onclick="() => RemoveTag(SelectedPhotoId, tag)" class="hover:text-pink-900">×</button>
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="flex gap-3">
+                <button @onclick="AddNewTag" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white py-2 rounded-lg font-semibold transition">
+                    Добавить
+                </button>
+                <button @onclick="() => ShowTagModal = false" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Модальное окно редактирования подписи -->
+@if (ShowCaptionModal)
+{
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @onclick="() => ShowCaptionModal = false">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full" @onclick:stopPropagation="true">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Изменить подпись</h3>
+            
+            <div class="mb-4">
+                <textarea @bind="NewCaption" 
+                          class="w-full rounded-lg border-2 border-green-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 resize-none" 
+                          rows="3" placeholder="Введите подпись к фотографии..." maxlength="200"></textarea>
+                <div class="text-xs text-gray-500 mt-1">@(NewCaption?.Length ?? 0)/200 символов</div>
+            </div>
+
+            <div class="flex gap-3">
+                <button @onclick="SaveCaption" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition">
+                    Сохранить
+                </button>
+                <button @onclick="() => ShowCaptionModal = false" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}

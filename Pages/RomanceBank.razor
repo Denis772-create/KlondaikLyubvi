@@ -1,6 +1,6 @@
 @page "/romance-bank"
-@inject HttpClient Http
 @inject IJSRuntime JS
+@inject HttpClient Http
 
 <div class="bg-gradient-to-br from-purple-100 via-pink-100 to-rose-200 min-h-screen py-6 px-4 font-sans">
     <div class="max-w-6xl mx-auto bg-white/70 backdrop-blur-md rounded-3xl shadow-xl p-6">
@@ -14,78 +14,919 @@
             </div>
         </div>
 
-        <!-- Дашборд -->
-        <div class="space-y-6">
-            <!-- Уровень любви -->
-            <div class="bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl p-6 border-2 border-purple-200">
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl">👑</div>
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-800">💕 Начинающие романтики</h3>
-                        <p class="text-purple-600 font-semibold">0 очков любви</p>
-                    </div>
-                </div>
-                
-                <!-- Прогресс -->
-                <div class="mb-4">
-                    <div class="flex justify-between text-sm text-gray-600 mb-2">
-                        <span>Прогресс до следующего уровня</span>
-                        <span>0 / 50</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-3">
-                        <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
-                    </div>
-                </div>
-                
-                <!-- Быстрые действия -->
-                <div class="flex gap-3 flex-wrap">
-                    <button class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition">
-                        🛍️ Найти услугу
-                    </button>
-                    <button class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-semibold transition">
-                        💝 Добавить услугу
-                    </button>
-                </div>
+        <!-- Сообщения -->
+        @if (!string.IsNullOrEmpty(SuccessMessage))
+        {
+            <div class="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg text-sm">
+                @SuccessMessage
             </div>
-            
-            <!-- Статистика -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
-                    <div class="text-2xl font-bold text-purple-600">0</div>
-                    <div class="text-sm text-gray-600">Завершенных обменов</div>
-                </div>
-                <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
-                    <div class="text-2xl font-bold text-pink-600">0</div>
-                    <div class="text-sm text-gray-600">Всего запросов</div>
-                </div>
-                <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
-                    <div class="text-2xl font-bold text-blue-600">0.0</div>
-                    <div class="text-sm text-gray-600">Средняя оценка</div>
-                </div>
-                <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
-                    <div class="text-2xl font-bold text-green-600">0</div>
-                    <div class="text-sm text-gray-600">За эту неделю</div>
-                </div>
+        }
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
+                @ErrorMessage
             </div>
-            
-            <!-- Пустое состояние -->
-            <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    📈 Недавняя активность
-                </h3>
-                <div class="text-center py-8 text-gray-500">
-                    <div class="text-4xl mb-2">💫</div>
-                    <p>Пока нет активности. Начните с создания первой услуги!</p>
-                </div>
-            </div>
+        }
+
+        <!-- Навигация -->
+        <div class="flex flex-wrap gap-2 mb-6">
+            <button @onclick="() => SetActiveTab(DashboardTab)" 
+                    class="px-4 py-2 rounded-lg font-semibold transition @(ActiveTab == DashboardTab ? "bg-purple-500 text-white" : "bg-white text-purple-600 hover:bg-purple-50")">
+                📊 Дашборд
+            </button>
+            <button @onclick="() => SetActiveTab(ServicesTab)" 
+                    class="px-4 py-2 rounded-lg font-semibold transition @(ActiveTab == ServicesTab ? "bg-purple-500 text-white" : "bg-white text-purple-600 hover:bg-purple-50")">
+                💝 Мои услуги
+            </button>
+            <button @onclick="() => SetActiveTab(BrowseTab)" 
+                    class="px-4 py-2 rounded-lg font-semibold transition @(ActiveTab == BrowseTab ? "bg-purple-500 text-white" : "bg-white text-purple-600 hover:bg-purple-50")">
+                🛍️ Найти услуги
+            </button>
+            <button @onclick="() => SetActiveTab(RequestsTab)" 
+                    class="px-4 py-2 rounded-lg font-semibold transition @(ActiveTab == RequestsTab ? "bg-purple-500 text-white" : "bg-white text-purple-600 hover:bg-purple-50")">
+                📋 Запросы
+            </button>
+            <button @onclick="() => SetActiveTab(HistoryTab)" 
+                    class="px-4 py-2 rounded-lg font-semibold transition @(ActiveTab == HistoryTab ? "bg-purple-500 text-white" : "bg-white text-purple-600 hover:bg-purple-50")">
+                📈 История
+            </button>
         </div>
+
+        <!-- Дашборд -->
+        @if (ActiveTab == DashboardTab)
+        {
+            <div class="space-y-6">
+                <!-- Уровень любви -->
+                <div class="bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl p-6 border-2 border-purple-200">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl">👑</div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">@LoveLevel</h3>
+                            <p class="text-purple-600 font-semibold">@LovePoints очков любви</p>
+                    </div>
+                    </div>
+                    
+                    <!-- Прогресс -->
+                    <div class="mb-4">
+                        @{
+                            var nextLevelPoints = GetNextLevelPoints();
+                            var progress = Math.Min(100, (double)LovePoints / nextLevelPoints * 100);
+                        }
+                        <div class="flex justify-between text-sm text-gray-600 mb-2">
+                            <span>Прогресс до следующего уровня</span>
+                            <span>@LovePoints / @nextLevelPoints</span>
+                                            </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500" style="width: @progress%"></div>
+                                        </div>
+                    </div>
+                    
+                    <!-- Быстрые действия -->
+                    <div class="flex gap-3 flex-wrap">
+                        <button @onclick="() => SetActiveTab(BrowseTab)" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition">
+                            🛍️ Найти услугу
+                        </button>
+                        <button @onclick="() => SetActiveTab(ServicesTab)" class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-semibold transition">
+                            💝 Добавить услугу
+                                            </button>
+                                        </div>
+                </div>
+                
+                <!-- Статистика -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
+                        <div class="text-2xl font-bold text-purple-600">@TotalExchanges</div>
+                        <div class="text-sm text-gray-600">Завершенных обменов</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
+                        <div class="text-2xl font-bold text-pink-600">@TotalRequests</div>
+                        <div class="text-sm text-gray-600">Всего запросов</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
+                        <div class="text-2xl font-bold text-blue-600">@AverageRating.ToString("F1")</div>
+                        <div class="text-sm text-gray-600">Средняя оценка</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-lg text-center border border-gray-200">
+                        <div class="text-2xl font-bold text-green-600">@CompletedThisWeek</div>
+                        <div class="text-sm text-gray-600">За эту неделю</div>
+                    </div>
+                </div>
+                
+                <!-- Недавняя активность -->
+                <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        📈 Недавняя активность
+                    </h3>
+                    @if (RecentActivity.Any())
+                    {
+                        <div class="space-y-3">
+                            @foreach (var activity in RecentActivity.Take(5))
+                            {
+                                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl">@activity.Icon</div>
+                                    <div class="flex-1">
+                                        <div class="font-medium text-gray-800">@activity.Title</div>
+                                        <div class="text-sm text-gray-600">@activity.Description</div>
+                                    </div>
+                                    <div class="text-xs text-gray-500">@activity.Date.ToString("dd.MM HH:mm")</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    else
+                    {
+                        <div class="text-center py-8 text-gray-500">
+                            <div class="text-4xl mb-2">💫</div>
+                            <p>Пока нет активности. Начните с создания первой услуги!</p>
+                    </div>
+                }
+                </div>
+            </div>
+        }
+
+        <!-- Мои услуги -->
+        @if (ActiveTab == ServicesTab)
+        {
+            <div class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Мои услуги</h2>
+                    <button @onclick="OpenAddServiceModal" class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-lg font-semibold transition">
+                        ➕ Добавить услугу
+                    </button>
+                </div>
+
+                @if (MyServices.Any())
+                {
+                    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        @foreach (var service in MyServices)
+                        {
+                            <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="text-2xl">@service.Icon</div>
+                                    <div class="flex gap-1">
+                                        <button @onclick="() => EditService(service)" class="text-blue-600 hover:text-blue-800 p-1">✏️</button>
+                                        <button @onclick="() => DeleteService(service.Id)" class="text-red-600 hover:text-red-800 p-1">🗑️</button>
+                                    </div>
+                                </div>
+                                <h3 class="font-bold text-gray-800 mb-2">@service.Title</h3>
+                                <p class="text-sm text-gray-600 mb-3">@service.Description</p>
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="bg-purple-100 text-purple-700 px-2 py-1 rounded-full">@service.Category</span>
+                                    <span class="text-gray-500">@service.Points очков</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-12 text-gray-500">
+                        <div class="text-6xl mb-4">💝</div>
+                        <h3 class="text-xl font-semibold mb-2">У вас пока нет услуг</h3>
+                        <p class="mb-4">Создайте свою первую услугу и начните делиться заботой!</p>
+                        <button @onclick="OpenAddServiceModal" class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+                            Создать первую услугу
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Найти услуги -->
+        @if (ActiveTab == BrowseTab)
+        {
+            <div class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Доступные услуги</h2>
+                    <div class="flex gap-2">
+                        <select @bind="SelectedCategory" class="rounded-lg border-2 border-gray-200 px-3 py-2">
+                            <option value="">Все категории</option>
+                            <option value="Забота">Забота</option>
+                            <option value="Романтика">Романтика</option>
+                            <option value="Помощь">Помощь</option>
+                            <option value="Развлечения">Развлечения</option>
+                        </select>
+                    </div>
+                </div>
+
+                @if (AvailableServices.Any())
+                {
+                    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        @foreach (var service in FilteredServices)
+                        {
+                            <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="text-2xl">@service.Icon</div>
+                                    <div class="flex items-center gap-1 text-yellow-500">
+                                        ⭐ @service.Rating.ToString("F1")
+                                            </div>
+                                        </div>
+                                <h3 class="font-bold text-gray-800 mb-2">@service.Title</h3>
+                                <p class="text-sm text-gray-600 mb-3">@service.Description</p>
+                                <div class="flex justify-between items-center mb-3">
+                                    <span class="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-sm">@service.Category</span>
+                                    <span class="text-gray-500 text-sm">@service.Points очков</span>
+                                </div>
+                                <button @onclick="() => RequestService(service)" class="w-full bg-pink-500 hover:bg-pink-600 text-white py-2 rounded-lg font-semibold transition">
+                                    Запросить услугу
+                                </button>
+                                            </div>
+                                        }
+                                            </div>
+                                        }
+                else
+                {
+                    <div class="text-center py-12 text-gray-500">
+                        <div class="text-6xl mb-4">🔍</div>
+                        <h3 class="text-xl font-semibold mb-2">Услуг пока нет</h3>
+                        <p>Станьте первым, кто предложит свою услугу!</p>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Запросы -->
+        @if (ActiveTab == RequestsTab)
+        {
+            <div class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800">Запросы услуг</h2>
+                
+                <div class="flex gap-2 mb-4">
+                    <button @onclick="() => SetRequestFilter(IncomingFilter)" 
+                            class="px-4 py-2 rounded-lg font-semibold transition @(RequestFilter == IncomingFilter ? "bg-blue-500 text-white" : "bg-white text-blue-600 hover:bg-blue-50")">
+                        📥 Входящие (@IncomingRequests.Count)
+                    </button>
+                    <button @onclick="() => SetRequestFilter(OutgoingFilter)" 
+                            class="px-4 py-2 rounded-lg font-semibold transition @(RequestFilter == OutgoingFilter ? "bg-green-500 text-white" : "bg-white text-green-600 hover:bg-green-50")">
+                        📤 Исходящие (@OutgoingRequests.Count)
+                    </button>
+                    </div>
+
+                @if (RequestFilter == IncomingFilter)
+                {
+                    @if (IncomingRequests.Any())
+                {
+                    <div class="space-y-4">
+                            @foreach (var request in IncomingRequests)
+                            {
+                                <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+                                    <div class="flex justify-between items-start mb-3">
+                                            <div>
+                                            <h3 class="font-bold text-gray-800">@request.ServiceTitle</h3>
+                                            <p class="text-sm text-gray-600">от @request.RequesterName</p>
+                                        </div>
+                                        <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-sm">@request.Status</span>
+                                    </div>
+                                    <p class="text-sm text-gray-600 mb-3">@request.Message</p>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-gray-500">@request.Date.ToString("dd.MM.yyyy HH:mm")</span>
+                                        @if (request.Status == "Ожидает")
+                                        {
+                                            <div class="flex gap-2">
+                                                <button @onclick="() => AcceptRequest(request.Id)" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+                                                    Принять
+                                                </button>
+                                                <button @onclick="() => RejectRequest(request.Id)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                                    Отклонить
+                                                </button>
+                                            </div>
+                                        }
+                                            </div>
+                                        </div>
+                            }
+                                            </div>
+                                        }
+                    else
+                    {
+                        <div class="text-center py-12 text-gray-500">
+                            <div class="text-6xl mb-4">📥</div>
+                            <p>Нет входящих запросов</p>
+                        </div>
+                    }
+                }
+
+                @if (RequestFilter == OutgoingFilter)
+                {
+                    @if (OutgoingRequests.Any())
+                    {
+                        <div class="space-y-4">
+                            @foreach (var request in OutgoingRequests)
+                            {
+                                <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 class="font-bold text-gray-800">@request.ServiceTitle</h3>
+                                            <p class="text-sm text-gray-600">для @request.ProviderName</p>
+                                            </div>
+                                        <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm">@request.Status</span>
+                                    </div>
+                                    <p class="text-sm text-gray-600 mb-3">@request.Message</p>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-gray-500">@request.Date.ToString("dd.MM.yyyy HH:mm")</span>
+                                        @if (request.Status == "Выполнено" && !request.IsRated)
+                                    {
+                                            <button @onclick="() => OpenRatingModal(request)" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm">
+                                                Оценить
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-12 text-gray-500">
+                            <div class="text-6xl mb-4">📤</div>
+                            <p>Нет исходящих запросов</p>
+                        </div>
+                    }
+                }
+            </div>
+        }
+
+        <!-- История -->
+        @if (ActiveTab == HistoryTab)
+        {
+            <div class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800">История обменов</h2>
+                
+                @if (CompletedExchanges.Any())
+                {
+                    <div class="space-y-4">
+                        @foreach (var exchange in CompletedExchanges)
+                        {
+                            <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+                                <div class="flex justify-between items-start mb-3">
+                                            <div>
+                                        <h3 class="font-bold text-gray-800">@exchange.ServiceTitle</h3>
+                                        <p class="text-sm text-gray-600">с @exchange.PartnerName</p>
+                                            </div>
+                                    <div class="text-right">
+                                        <div class="flex items-center gap-1 text-yellow-500 mb-1">
+                                            ⭐ @exchange.Rating
+                                        </div>
+                                        <span class="text-sm text-green-600">+@exchange.PointsEarned очков</span>
+                                            </div>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-2">@exchange.Review</p>
+                                <div class="text-xs text-gray-500">@exchange.CompletedDate.ToString("dd.MM.yyyy")</div>
+                                            </div>
+                                        }
+                            </div>
+                        }
+                else
+                {
+                    <div class="text-center py-12 text-gray-500">
+                        <div class="text-6xl mb-4">📈</div>
+                        <p>История обменов пуста</p>
+                    </div>
+                }
+            </div>
+        }
     </div>
 </div>
 
+<!-- Модальное окно добавления/редактирования услуги -->
+@if (ShowServiceModal)
+{
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @onclick="CloseServiceModal">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full" @onclick:stopPropagation="true">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">@(IsEditingService ? "Редактировать услугу" : "Добавить услугу")</h3>
+            
+            <div class="space-y-4">
+                    <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Название *</label>
+                    <input type="text" @bind="NewService.Title" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" 
+                           placeholder="Романтический ужин" />
+                    </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Описание *</label>
+                    <textarea @bind="NewService.Description" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 resize-none" 
+                              rows="3" placeholder="Приготовлю романтический ужин при свечах..."></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Категория *</label>
+                    <select @bind="NewService.Category" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400">
+                        <option value="">Выберите категорию</option>
+                        <option value="Забота">Забота</option>
+                        <option value="Романтика">Романтика</option>
+                        <option value="Помощь">Помощь</option>
+                        <option value="Развлечения">Развлечения</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Иконка</label>
+                    <input type="text" @bind="NewService.Icon" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" 
+                           placeholder="🍽️" maxlength="2" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Стоимость в очках</label>
+                    <input type="number" @bind="NewService.Points" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" 
+                           min="1" max="100" />
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button @onclick="SaveService" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white py-2 rounded-lg font-semibold transition">
+                    @(IsEditingService ? "Сохранить" : "Добавить")
+                </button>
+                <button @onclick="CloseServiceModal" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Модальное окно запроса услуги -->
+@if (ShowRequestModal)
+{
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @onclick="CloseRequestModal">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full" @onclick:stopPropagation="true">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Запросить услугу</h3>
+            
+            @if (SelectedService != null)
+            {
+                <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xl">@SelectedService.Icon</span>
+                        <span class="font-semibold">@SelectedService.Title</span>
+                    </div>
+                    <p class="text-sm text-gray-600">@SelectedService.Description</p>
+            </div>
+            }
+
+            <div class="space-y-4">
+                    <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Дата *</label>
+                    <input type="date" @bind="RequestDate" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" />
+                    </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Сообщение</label>
+                    <textarea @bind="RequestMessage" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 resize-none" 
+                              rows="3" placeholder="Дополнительные пожелания..."></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button @onclick="SendServiceRequest" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white py-2 rounded-lg font-semibold transition">
+                    Отправить запрос
+                </button>
+                <button @onclick="CloseRequestModal" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Модальное окно оценки -->
+@if (ShowRatingModal)
+{
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" @onclick="CloseRatingModal">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full" @onclick:stopPropagation="true">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Оценить услугу</h3>
+            
+            @if (SelectedRequest != null)
+            {
+                <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div class="font-semibold mb-1">@SelectedRequest.ServiceTitle</div>
+                    <div class="text-sm text-gray-600">от @SelectedRequest.ProviderName</div>
+                    </div>
+            }
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Оценка *</label>
+                    <div class="flex gap-1">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            int rating = i;
+                            <button @onclick="() => SetRating(rating)" class="text-2xl @(rating <= NewRating ? "text-yellow-500" : "text-gray-300") hover:text-yellow-500">
+                                ⭐
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Отзыв</label>
+                    <textarea @bind="ReviewText" class="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 resize-none" 
+                              rows="3" placeholder="Поделитесь впечатлениями..."></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button @onclick="SubmitRating" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-semibold transition">
+                    Отправить оценку
+                </button>
+                <button @onclick="CloseRatingModal" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    // Константы для табов
+    private const string DashboardTab = "dashboard";
+    private const string ServicesTab = "services";
+    private const string BrowseTab = "browse";
+    private const string RequestsTab = "requests";
+    private const string HistoryTab = "history";
+    private const string IncomingFilter = "incoming";
+    private const string OutgoingFilter = "outgoing";
+    
+    // Основные переменные
+    private int UserId = 1;
+    private string ActiveTab = DashboardTab;
+    private string RequestFilter = IncomingFilter;
+    private string SelectedCategory = "";
+    
+    // Статистика и геймификация
+    private int TotalExchanges = 12;
+    private int TotalRequests = 8;
+    private double AverageRating = 4.7;
+    private int CompletedThisWeek = 3;
+    private int LovePoints = 245;
+    private string LoveLevel = "💖 Влюбленная пара";
+    
+    // Сообщения
+    private string SuccessMessage = "";
+    private string ErrorMessage = "";
+    
+    // Модальные окна
+    private bool ShowServiceModal = false;
+    private bool ShowRequestModal = false;
+    private bool ShowRatingModal = false;
+    private bool IsEditingService = false;
+    
+    // Данные форм
+    private ServiceDto NewService = new();
+    private ServiceDto? SelectedService = null;
+    private RequestDto? SelectedRequest = null;
+    private DateTime RequestDate = DateTime.Today.AddDays(1);
+    private string RequestMessage = "";
+    private int NewRating = 0;
+    private string ReviewText = "";
+    
+    // Списки данных
+    private List<ServiceDto> MyServices = new();
+    private List<ServiceDto> AvailableServices = new();
+    private List<RequestDto> IncomingRequests = new();
+    private List<RequestDto> OutgoingRequests = new();
+    private List<ExchangeDto> CompletedExchanges = new();
+    private List<ActivityDto> RecentActivity = new();
+    
+    // Вычисляемые свойства
+    private IEnumerable<ServiceDto> FilteredServices => 
+        string.IsNullOrEmpty(SelectedCategory) ? AvailableServices : AvailableServices.Where(s => s.Category == SelectedCategory);
+    
     protected override async Task OnInitializedAsync()
     {
-        // Простая инициализация без ошибок
-        await Task.CompletedTask;
+        var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        if (int.TryParse(userIdStr, out var uid))
+            UserId = uid;
+            
+        UpdateLoveLevel();
+        LoadSampleData();
+    }
+    
+    private void UpdateLoveLevel()
+    {
+        if (LovePoints < 50)
+            LoveLevel = "💕 Начинающие романтики";
+        else if (LovePoints < 150)
+            LoveLevel = "💖 Влюбленная пара";
+        else if (LovePoints < 300)
+            LoveLevel = "💗 Романтические партнеры";
+        else if (LovePoints < 500)
+            LoveLevel = "💞 Мастера любви";
+        else
+            LoveLevel = "👑 Легенды романтики";
+    }
+    
+    private int GetNextLevelPoints()
+    {
+        if (LovePoints < 50) return 50;
+        if (LovePoints < 150) return 150;
+        if (LovePoints < 300) return 300;
+        if (LovePoints < 500) return 500;
+        return 1000;
+    }
+    
+    private void LoadSampleData()
+    {
+        // Пример данных для демонстрации
+        MyServices = new List<ServiceDto>
+        {
+            new() { Id = 1, Title = "Романтический ужин", Description = "Приготовлю ужин при свечах", Category = "Романтика", Icon = "🍽️", Points = 25, Rating = 4.8 },
+            new() { Id = 2, Title = "Массаж", Description = "Расслабляющий массаж после работы", Category = "Забота", Icon = "💆", Points = 20, Rating = 4.9 }
+        };
+        
+        AvailableServices = new List<ServiceDto>
+        {
+            new() { Id = 3, Title = "Прогулка в парке", Description = "Романтическая прогулка на закате", Category = "Романтика", Icon = "🌅", Points = 15, Rating = 4.6, ProviderId = 2, ProviderName = "Анна" },
+            new() { Id = 4, Title = "Помощь с покупками", Description = "Помогу с покупками в магазине", Category = "Помощь", Icon = "🛒", Points = 10, Rating = 4.5, ProviderId = 3, ProviderName = "Михаил" }
+        };
+        
+        IncomingRequests = new List<RequestDto>
+        {
+            new() { Id = 1, ServiceTitle = "Романтический ужин", RequesterName = "Мария", Message = "Хотелось бы на годовщину", Status = "Ожидает", Date = DateTime.Now.AddHours(-2) }
+        };
+        
+        OutgoingRequests = new List<RequestDto>
+        {
+            new() { Id = 2, ServiceTitle = "Прогулка в парке", ProviderName = "Анна", Message = "На выходных было бы отлично", Status = "Принят", Date = DateTime.Now.AddDays(-1) }
+        };
+        
+        CompletedExchanges = new List<ExchangeDto>
+        {
+            new() { ServiceTitle = "Завтрак в постель", PartnerName = "Елена", Rating = 5, Review = "Было очень вкусно и романтично!", PointsEarned = 20, CompletedDate = DateTime.Now.AddDays(-3) }
+        };
+        
+        RecentActivity = new List<ActivityDto>
+        {
+            new() { Icon = "✅", Title = "Услуга выполнена", Description = "Завтрак в постель для Елены", Date = DateTime.Now.AddDays(-3) },
+            new() { Icon = "⭐", Title = "Получена оценка", Description = "5 звезд за романтический ужин", Date = DateTime.Now.AddDays(-5) },
+            new() { Icon = "💝", Title = "Новая услуга", Description = "Добавлена услуга 'Массаж'", Date = DateTime.Now.AddDays(-7) }
+        };
+    }
+    
+    // Навигация
+    private void SetActiveTab(string tab)
+    {
+        ActiveTab = tab;
+        ClearMessages();
+    }
+    
+    private void SetRequestFilter(string filter)
+    {
+        RequestFilter = filter;
+    }
+    
+    // Управление услугами
+    private void OpenAddServiceModal()
+    {
+        NewService = new ServiceDto();
+        IsEditingService = false;
+        ShowServiceModal = true;
+    }
+    
+    private void EditService(ServiceDto service)
+    {
+        NewService = new ServiceDto
+        {
+            Id = service.Id,
+            Title = service.Title,
+            Description = service.Description,
+            Category = service.Category,
+            Icon = service.Icon,
+            Points = service.Points
+        };
+        IsEditingService = true;
+        ShowServiceModal = true;
+    }
+    
+    private void CloseServiceModal()
+    {
+        ShowServiceModal = false;
+        NewService = new ServiceDto();
+        IsEditingService = false;
+    }
+    
+    private async Task SaveService()
+    {
+        if (string.IsNullOrWhiteSpace(NewService.Title) || string.IsNullOrWhiteSpace(NewService.Description) || string.IsNullOrWhiteSpace(NewService.Category))
+        {
+            ErrorMessage = "Заполните все обязательные поля";
+            return;
+        }
+        
+        try
+        {
+            if (IsEditingService)
+            {
+                var existingService = MyServices.FirstOrDefault(s => s.Id == NewService.Id);
+                if (existingService != null)
+                {
+                    existingService.Title = NewService.Title;
+                    existingService.Description = NewService.Description;
+                    existingService.Category = NewService.Category;
+                    existingService.Icon = NewService.Icon;
+                    existingService.Points = NewService.Points;
+                }
+                SuccessMessage = "Услуга обновлена!";
+            }
+            else
+            {
+                NewService.Id = MyServices.Count > 0 ? MyServices.Max(s => s.Id) + 1 : 1;
+                NewService.ProviderId = UserId;
+                MyServices.Add(NewService);
+                SuccessMessage = "Услуга добавлена!";
+                LovePoints += 5; // Бонус за добавление услуги
+                UpdateLoveLevel();
+            }
+            
+            CloseServiceModal();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Ошибка: {ex.Message}";
+        }
+    }
+    
+    private async Task DeleteService(int serviceId)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Удалить эту услугу?"))
+        {
+            MyServices.RemoveAll(s => s.Id == serviceId);
+            SuccessMessage = "Услуга удалена!";
+        }
+    }
+    
+    // Запросы услуг
+    private void RequestService(ServiceDto service)
+    {
+        SelectedService = service;
+        RequestDate = DateTime.Today.AddDays(1);
+        RequestMessage = "";
+        ShowRequestModal = true;
+    }
+    
+    private void CloseRequestModal()
+    {
+        ShowRequestModal = false;
+        SelectedService = null;
+        RequestMessage = "";
+    }
+    
+    private async Task SendServiceRequest()
+    {
+        if (SelectedService == null || RequestDate <= DateTime.Today)
+        {
+            ErrorMessage = "Выберите корректную дату";
+            return;
+        }
+        
+        try
+        {
+            var newRequest = new RequestDto
+            {
+                Id = OutgoingRequests.Count > 0 ? OutgoingRequests.Max(r => r.Id) + 1 : 1,
+                ServiceTitle = SelectedService.Title,
+                ProviderName = SelectedService.ProviderName ?? "Неизвестно",
+                Message = RequestMessage,
+                Status = "Ожидает",
+                Date = DateTime.Now
+            };
+            
+            OutgoingRequests.Add(newRequest);
+            SuccessMessage = "Запрос отправлен!";
+            CloseRequestModal();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Ошибка: {ex.Message}";
+        }
+    }
+    
+    // Обработка запросов
+    private async Task AcceptRequest(int requestId)
+    {
+        var request = IncomingRequests.FirstOrDefault(r => r.Id == requestId);
+        if (request != null)
+        {
+            request.Status = "Принят";
+            SuccessMessage = "Запрос принят!";
+            LovePoints += 3; // Бонус за принятие запроса
+            UpdateLoveLevel();
+        }
+    }
+    
+    private async Task RejectRequest(int requestId)
+    {
+        var request = IncomingRequests.FirstOrDefault(r => r.Id == requestId);
+        if (request != null)
+        {
+            request.Status = "Отклонен";
+            SuccessMessage = "Запрос отклонен";
+        }
+    }
+    
+    // Система оценок
+    private void OpenRatingModal(RequestDto request)
+    {
+        SelectedRequest = request;
+        NewRating = 0;
+        ReviewText = "";
+        ShowRatingModal = true;
+    }
+    
+    private void CloseRatingModal()
+    {
+        ShowRatingModal = false;
+        SelectedRequest = null;
+        NewRating = 0;
+        ReviewText = "";
+    }
+    
+    private void SetRating(int rating)
+    {
+        NewRating = rating;
+    }
+    
+    private async Task SubmitRating()
+    {
+        if (SelectedRequest == null || NewRating == 0)
+        {
+            ErrorMessage = "Выберите оценку";
+            return;
+        }
+        
+        try
+        {
+            SelectedRequest.IsRated = true;
+            
+            // Добавляем в историю
+            var exchange = new ExchangeDto
+            {
+                ServiceTitle = SelectedRequest.ServiceTitle,
+                PartnerName = SelectedRequest.ProviderName ?? "Неизвестно",
+                Rating = NewRating,
+                Review = ReviewText,
+                PointsEarned = 15,
+                CompletedDate = DateTime.Now
+            };
+            
+            CompletedExchanges.Insert(0, exchange);
+            TotalExchanges++;
+            LovePoints += 15; // Бонус за завершение обмена
+            UpdateLoveLevel();
+            
+            SuccessMessage = "Оценка отправлена!";
+            CloseRatingModal();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Ошибка: {ex.Message}";
+        }
+    }
+    
+    private void ClearMessages()
+    {
+        SuccessMessage = "";
+        ErrorMessage = "";
+    }
+    
+    // DTO классы
+    public class ServiceDto
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Icon { get; set; } = "💝";
+        public int Points { get; set; } = 10;
+        public double Rating { get; set; } = 0;
+        public int ProviderId { get; set; }
+        public string? ProviderName { get; set; }
+    }
+    
+    public class RequestDto
+    {
+        public int Id { get; set; }
+        public string ServiceTitle { get; set; } = "";
+        public string RequesterName { get; set; } = "";
+        public string ProviderName { get; set; } = "";
+        public string Message { get; set; } = "";
+        public string Status { get; set; } = "";
+        public DateTime Date { get; set; }
+        public bool IsRated { get; set; } = false;
+    }
+    
+    public class ExchangeDto
+    {
+        public string ServiceTitle { get; set; } = "";
+        public string PartnerName { get; set; } = "";
+        public int Rating { get; set; }
+        public string Review { get; set; } = "";
+        public int PointsEarned { get; set; }
+        public DateTime CompletedDate { get; set; }
+    }
+    
+    public class ActivityDto
+    {
+        public string Icon { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public DateTime Date { get; set; }
     }
 }

@@ -60,22 +60,21 @@ public class RomanceExchangeService(AppDbContext db, TelegramService telegram)
         await _db.SaveChangesAsync();
 
         // Уведомления в Telegram
-        var provider = requestedService.User;
-        var offerText = offeredService != null ? $"\n🔄 В обмен предлагает: {offeredService.Emoji} «{offeredService.Name}»" : "\n💭 Пока не предложил услугу в обмен";
-        
-        await _telegram.SendMessageAsync(
-            requestedService.UserId,
-            $"💌 Новый запрос на обмен!\n{requester.DisplayName} хочет получить: {requestedService.Emoji} «{requestedService.Name}»" +
-            offerText +
-            (scheduledDate.HasValue ? $"\n📅 Предпочитаемая дата: {scheduledDate.Value:dd.MM.yyyy}" : "") +
-            (!string.IsNullOrEmpty(message) ? $"\n💬 Сообщение: {message}" : "") +
-            "\n\nЗагляни в Банк Романтики, чтобы ответить! 💕");
+        await _telegram.SendExchangeRequestAsync(
+            requestedService.UserId, 
+            requesterId, 
+            requestedService.Name, 
+            requestedService.Emoji,
+            offeredService?.Name,
+            offeredService?.Emoji);
 
-        await _telegram.SendMessageAsync(
-            requesterId,
-            $"✨ Запрос отправлен!\nТы попросил(а) у {provider?.DisplayName ?? "партнера"}: {requestedService.Emoji} «{requestedService.Name}»" +
-            (offeredService != null ? $"\nВ обмен предложил(а): {offeredService.Emoji} «{offeredService.Name}»" : "") +
-            "\nОжидай ответа в Банке Романтики 💞");
+        await _telegram.SendExchangeRequestConfirmationAsync(
+            requesterId, 
+            requestedService.UserId, 
+            requestedService.Name, 
+            requestedService.Emoji,
+            offeredService?.Name,
+            offeredService?.Emoji);
 
         return true;
     }
@@ -98,28 +97,23 @@ public class RomanceExchangeService(AppDbContext db, TelegramService telegram)
             if (newScheduledDate.HasValue)
                 exchange.ScheduledDate = newScheduledDate;
 
-            var offerText = exchange.OfferedService != null ? 
-                $"\n🔄 В обмен получишь: {exchange.OfferedService.Emoji} «{exchange.OfferedService.Name}»" : "";
-
-            await _telegram.SendMessageAsync(
+            await _telegram.SendExchangeAcceptedAsync(
                 exchange.RequesterId,
-                $"🎉 Отличные новости!\n{exchange.RequestedService?.User?.DisplayName ?? "Партнер"} согласился(ась) на обмен!" +
-                $"\n✅ Ты получишь: {exchange.RequestedService?.Emoji} «{exchange.RequestedService?.Name}»" +
-                offerText +
-                (exchange.ScheduledDate.HasValue ? $"\n📅 Дата: {exchange.ScheduledDate.Value:dd.MM.yyyy}" : "") +
-                (!string.IsNullOrEmpty(responseMessage) ? $"\n💬 Сообщение: {responseMessage}" : "") +
-                "\n\nТеперь можно наслаждаться обменом! 💕");
+                exchange.ProviderId,
+                exchange.RequestedService?.Name ?? "",
+                exchange.RequestedService?.Emoji ?? "",
+                exchange.OfferedService?.Name,
+                exchange.OfferedService?.Emoji);
         }
         else
         {
             exchange.Status = ExchangeStatus.Declined;
             exchange.ResponseMessage = responseMessage;
 
-            await _telegram.SendMessageAsync(
+            await _telegram.SendExchangeRejectedAsync(
                 exchange.RequesterId,
-                $"😔 К сожалению, запрос на обмен «{exchange.RequestedService?.Name}» был отклонен." +
-                (!string.IsNullOrEmpty(responseMessage) ? $"\nПричина: {responseMessage}" : "") +
-                "\n\nНе расстраивайся, есть много других способов порадовать друг друга! 💞");
+                exchange.RequestedService?.Name ?? "",
+                responseMessage);
         }
 
         await _db.SaveChangesAsync();
@@ -146,16 +140,11 @@ public class RomanceExchangeService(AppDbContext db, TelegramService telegram)
         await _db.SaveChangesAsync();
 
         // Уведомления
-        var offerText = exchange.OfferedService != null ? 
-            $"\nВ обмен на: {exchange.OfferedService.Emoji} «{exchange.OfferedService.Name}»" : "";
-
-        await _telegram.SendMessageAsync(
+        await _telegram.SendExchangeCompletedAsync(
             exchange.ProviderId,
-            $"✨ Обмен завершен!\n«{exchange.RequestedService?.Name}» для {exchange.Requester?.DisplayName}" +
-            offerText +
-            (rating.HasValue ? $"\n⭐ Оценка: {rating}/5" : "") +
-            (!string.IsNullOrEmpty(review) ? $"\n💬 Отзыв: {review}" : "") +
-            "\n\nСпасибо за прекрасный обмен! 💕");
+            exchange.RequesterId,
+            exchange.RequestedService?.Name ?? "",
+            exchange.OfferedService?.Name);
 
         return true;
     }

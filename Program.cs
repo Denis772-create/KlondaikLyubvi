@@ -78,11 +78,7 @@ app.MapPost("/api/lovenotes", async (HttpContext ctx, KlondaikLyubvi.Shared.Love
         var partnerId = userId == 1 ? 2 : 1;
         var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
         var link = $"{baseUrl}/love";
-        // Cute message without revealing the note text
-        var sender = await db.Users.FindAsync(userId);
-        var senderName = sender?.DisplayName ?? "Партнёр";
-        var msg = $"💌 У тебя новое признание от {senderName}!\nОткрой, когда будешь готов(а) улыбнуться. 🫶";
-        await telegram.SendMessageWithUrlButtonAsync(partnerId, msg, "Открыть признания", link);
+        await telegram.SendLoveNoteNotificationAsync(partnerId, userId, link);
     }
     catch { }
 
@@ -331,12 +327,8 @@ app.MapPost("/api/invites", async ([FromBody] Event e, AppDbContext db, Telegram
     // Telegram notifications
     var creatorId = ev.UserId;
     var partnerId = creatorId == 1 ? 2 : 1;
-    var creator = await db.Users.FindAsync(creatorId);
-    var partner = await db.Users.FindAsync(partnerId);
-    var dateStr = ev.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
-    var descriptionLine = string.IsNullOrWhiteSpace(ev.Description) ? string.Empty : $"— {ev.Description}\n";
-    await telegram.SendMessageAsync(partnerId, $"🎟️ Приглашение!\n{creator?.DisplayName ?? "Любимый(ая)"} зовёт тебя на «{ev.Title}» {descriptionLine}🗓 {dateStr}\nЗагляни в раздел ‘Приглашения’ 💞");
-    await telegram.SendMessageAsync(creatorId, $"🎟️ Ты пригласил(а) {partner?.DisplayName ?? "партнёра"} на «{ev.Title}».\n🗓 {dateStr}");
+    await telegram.SendInviteNotificationAsync(partnerId, creatorId, ev.Title, ev.Description ?? "", ev.Date.ToLocalTime());
+    await telegram.SendInviteConfirmationAsync(creatorId, partnerId, ev.Title, ev.Date.ToLocalTime());
 
     return Results.Ok();
 });
@@ -356,9 +348,8 @@ app.MapDelete("/api/invites/{id}", async (int id, HttpRequest request, AppDbCont
     db.Events.Remove(ev);
     await db.SaveChangesAsync();
 
-    var reasonLine = string.IsNullOrWhiteSpace(reason) ? "без указания причины" : reason;
-    await telegram.SendMessageAsync(partnerId, $"🙏 Небольшое изменение планов.\n{creator?.DisplayName ?? "Партнёр"} отменил(а) приглашение «{ev.Title}» (🗓 {dateStr}).\nПричина: {reasonLine}");
-    await telegram.SendMessageAsync(creatorId, $"❗ Ты отменил(а) «{ev.Title}». Мы предупредили {partner?.DisplayName ?? "партнёра"}.");
+    await telegram.SendInviteCancellationAsync(partnerId, creatorId, ev.Title, ev.Date.ToLocalTime(), reason ?? "");
+    await telegram.SendInviteCancellationConfirmationAsync(creatorId, partnerId, ev.Title);
 
     return Results.Ok();
 });
@@ -583,6 +574,65 @@ app.MapPost("/api/services/{serviceId}/toggle/{userId}", async (int serviceId, i
     {
         return Results.BadRequest($"Ошибка: {ex.Message}");
     }
+});
+
+// API для реакций на признания
+app.MapPost("/api/lovenotes/{noteId}/reactions", async (int noteId, [FromBody] ReactionRequest request, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - реакции не сохраняются в БД
+    return Results.Ok();
+});
+
+app.MapDelete("/api/lovenotes/{noteId}/reactions/{emoji}", async (int noteId, string emoji, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - реакции не сохраняются в БД
+    return Results.Ok();
+});
+
+// API для тегов фотографий
+app.MapPost("/api/photos/{photoId}/tags", async (int photoId, [FromBody] TagRequest request, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - теги не сохраняются в БД
+    return Results.Ok();
+});
+
+app.MapDelete("/api/photos/{photoId}/tags/{tag}", async (int photoId, string tag, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - теги не сохраняются в БД
+    return Results.Ok();
+});
+
+// API для подписей к фотографиям
+app.MapPut("/api/photos/{photoId}/caption", async (int photoId, [FromBody] CaptionRequest request, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - подписи не сохраняются в БД
+    return Results.Ok();
+});
+
+// API для избранных фотографий
+app.MapPost("/api/photos/{photoId}/favorite", async (int photoId, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - избранное не сохраняется в БД
+    return Results.Ok();
+});
+
+app.MapDelete("/api/photos/{photoId}/favorite", async (int photoId, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - избранное не сохраняется в БД
+    return Results.Ok();
+});
+
+// API для событий календаря
+app.MapPost("/api/calendar/events", async ([FromBody] CalendarEventRequest request, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - события не сохраняются в БД
+    return Results.Ok();
+});
+
+app.MapDelete("/api/calendar/events/{eventId}", async (int eventId, AppDbContext db) =>
+{
+    // Пока просто возвращаем успех - события не сохраняются в БД
+    return Results.Ok();
 });
 
 app.Run();

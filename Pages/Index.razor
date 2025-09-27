@@ -2,6 +2,7 @@
 
 @inject IJSRuntime JS
 @inject HttpClient Http
+@inject NavigationManager Nav
 
 @code {
     string? Greeting;
@@ -15,6 +16,10 @@
     int WishlistItems = 0;
     DateTime LastActivity = DateTime.MinValue;
     List<string> RecentActivities = new();
+    
+    // Онбординг
+    bool ShowOnboarding = false;
+    bool OnboardingCompleted = false;
     
     protected override async Task OnInitializedAsync()
     {
@@ -40,6 +45,45 @@
             Greeting = "Добро пожаловать! 💕";
             UserName = "Гость";
         }
+        
+        // Проверяем нужно ли показать онбординг
+        await CheckOnboarding();
+    }
+    
+    async Task CheckOnboarding()
+    {
+        try
+        {
+            // Проверяем параметр URL для принудительного онбординга
+            var uri = new Uri(Nav.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            bool forceOnboarding = query["onb"] == "1";
+            
+            // Проверяем cookie о завершении онбординга
+            var onboardingCookie = await JS.InvokeAsync<string>("blazorGetCookie", "onboardingCompleted");
+            OnboardingCompleted = !string.IsNullOrEmpty(onboardingCookie);
+            
+            // Показываем онбординг если это первый вход или принудительно
+            ShowOnboarding = forceOnboarding || !OnboardingCompleted;
+            
+            // Очищаем параметр из URL если он есть
+            if (forceOnboarding)
+            {
+                Nav.NavigateTo("/", false);
+            }
+        }
+        catch
+        {
+            // В случае ошибки не показываем онбординг
+            ShowOnboarding = false;
+        }
+    }
+    
+    async Task CompleteOnboarding()
+    {
+        ShowOnboarding = false;
+        OnboardingCompleted = true;
+        StateHasChanged();
     }
 
     async Task LoadUserData()
@@ -114,17 +158,23 @@
     }
 }
 
+<!-- Онбординг -->
+@if (ShowOnboarding)
+{
+    <Onboarding UserName="@UserName" OnComplete="CompleteOnboarding" />
+}
+
 <div class="bg-gradient-to-br from-purple-100 via-pink-100 to-rose-200 min-h-screen py-6 px-4 font-sans">
     <div class="max-w-6xl mx-auto">
         <!-- Заголовок и приветствие -->
         <div class="text-center mb-8">
-            <div class="flex items-center justify-center gap-3 mb-4">
+        <div class="flex items-center justify-center gap-3 mb-4">
                 <span class="text-4xl animate-pulse">💝</span>
                 <span class="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent drop-shadow">Банк Романтики</span>
                 <span class="text-4xl animate-pulse">💝</span>
-            </div>
+        </div>
             <div class="text-lg md:text-xl mb-4 text-gray-700">
-                @((MarkupString)Greeting)
+            @((MarkupString)Greeting)
             </div>
             <div class="text-sm text-gray-600 bg-white/60 rounded-xl p-3 inline-block">
                 @GetMotivationalMessage()
