@@ -12,6 +12,14 @@
         public DateTime Date { get; set; }
         public int UserId { get; set; }
         public string? UserDisplayName { get; set; }
+        public List<ReactionDto> Reactions { get; set; } = new();
+    }
+
+    class ReactionDto
+    {
+        public string Emoji { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public bool UserReacted { get; set; }
     }
     List<LoveNoteDto> Notes = new();
     string? Text, Error, EditText;
@@ -28,6 +36,11 @@
         ["Еда"] = new [] { "🍓","🍫","🍰","🍩","🍪","🧁","🍯","🍎","🍒","🍇","🥐","🥞","☕","🍷" },
         ["Разное"] = new [] { "🎁","🎉","✨","🔥","🌙","⭐","☀️","🛁","🎥","🎵","📸","🏖️" }
     };
+    
+    string[] QuickReactions = new[] { "💖", "😍", "🥰", "👏", "🔥", "✨" };
+    
+    // Временное хранилище реакций (в реальном приложении это должно быть в базе данных)
+    Dictionary<int, Dictionary<string, HashSet<int>>> NoteReactions = new();
     void ToggleEmojiPicker()
     {
         showEmojiPicker = !showEmojiPicker;
@@ -118,75 +131,237 @@
             Error = "Ошибка удаления";
         }
     }
+
+    void ToggleReaction(LoveNoteDto note, string emoji)
+    {
+        if (!NoteReactions.ContainsKey(note.Id))
+            NoteReactions[note.Id] = new Dictionary<string, HashSet<int>>();
+            
+        if (!NoteReactions[note.Id].ContainsKey(emoji))
+            NoteReactions[note.Id][emoji] = new HashSet<int>();
+            
+        var userReacted = NoteReactions[note.Id][emoji].Contains(UserId);
+        
+        if (userReacted)
+            NoteReactions[note.Id][emoji].Remove(UserId);
+        else
+            NoteReactions[note.Id][emoji].Add(UserId);
+            
+        UpdateNoteReactions(note);
+    }
+
+    void UpdateNoteReactions(LoveNoteDto note)
+    {
+        note.Reactions.Clear();
+        
+        if (NoteReactions.ContainsKey(note.Id))
+        {
+            foreach (var reaction in NoteReactions[note.Id])
+            {
+                if (reaction.Value.Count > 0)
+                {
+                    note.Reactions.Add(new ReactionDto
+                    {
+                        Emoji = reaction.Key,
+                        Count = reaction.Value.Count,
+                        UserReacted = reaction.Value.Contains(UserId)
+                    });
+                }
+            }
+        }
+    }
+
+    string GetRandomCompliment()
+    {
+        var compliments = new[]
+        {
+            "Какие красивые слова! 💕",
+            "Это так трогательно! 🥰",
+            "Любовь в каждом слове ✨",
+            "Сердце тает от таких признаний 💖",
+            "Как же это мило! 😍"
+        };
+        
+        return compliments[DateTime.Now.Millisecond % compliments.Length];
+    }
 }
 
-<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-6 px-2 sm:py-10 sm:px-4 font-sans">
-    <div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-4 sm:p-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-pink-600 mb-6 text-center flex items-center justify-center gap-2">
-            <span class="inline-block text-3xl sm:text-4xl">📝</span> Я тебя люблю, потому что…
-        </h1>
-        <p class="text-center text-gray-600 mb-8 text-xs sm:text-sm">Пишите друг другу короткие, но важные слова любви 💖</p>
-        <div class="flex flex-wrap gap-2 mb-6 relative">
-            <input @bind="Text" class="flex-1 rounded-xl border-pink-200 px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="Добавить признание..." />
-            <button type="button" @onclick="ToggleEmojiPicker" class="px-2 text-xl sm:text-2xl">😊</button>
-            <button class="bg-pink-500 hover:bg-pink-600 text-white px-4 sm:px-6 py-2 rounded-xl font-semibold text-sm sm:text-base transition" @onclick="AddNote">Добавить</button>
-            @if (showEmojiPicker)
+<div class="bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100 min-h-screen py-6 px-2 sm:py-10 sm:px-4 font-sans">
+    <div class="max-w-4xl mx-auto">
+        <!-- Заголовок -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <span class="text-4xl animate-pulse">📝</span>
+                <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                    Стена Любви
+                </h1>
+                <span class="text-4xl animate-pulse">💕</span>
+            </div>
+            <p class="text-gray-600 mb-4 text-sm sm:text-base">Делитесь чувствами и создавайте теплые воспоминания</p>
+            <div class="bg-white/60 rounded-xl p-3 inline-block text-sm text-gray-600">
+                @GetRandomCompliment()
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-pink-600">@Notes.Count</div>
+                <div class="text-xs text-gray-600">Признаний</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-purple-600">@Notes.Sum(n => n.Reactions.Sum(r => r.Count))</div>
+                <div class="text-xs text-gray-600">Реакций</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-rose-600">@Notes.Count(n => n.Date.Date == DateTime.Today)</div>
+                <div class="text-xs text-gray-600">Сегодня</div>
+            </div>
+        </div>
+
+        <!-- Форма добавления -->
+        <div class="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-4 sm:p-6 mb-8">
+            <div class="flex flex-wrap gap-2 mb-4 relative">
+                <input @bind="Text" class="flex-1 min-w-0 rounded-xl border-2 border-pink-200 px-4 py-3 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 bg-white/90" placeholder="Поделитесь своими чувствами..." />
+                <button type="button" @onclick="ToggleEmojiPicker" class="px-3 py-3 text-xl sm:text-2xl bg-pink-100 hover:bg-pink-200 rounded-xl transition">😊</button>
+                <button class="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition transform hover:scale-105 shadow-lg" @onclick="AddNote">
+                    ✨ Отправить
+                </button>
+                @if (showEmojiPicker)
+                {
+                    <div id="emoji-picker" class="absolute left-0 top-full mt-2 z-20 w-[min(100%,360px)] bg-white rounded-2xl shadow-2xl p-3 animate-fade-in border border-pink-100 select-none" @onmousedown:stopPropagation>
+                        <div class="flex gap-1 mb-3 overflow-x-auto">
+                            @foreach (var cat in EmojiCategories.Keys)
+                            {
+                                var isActive = cat == activeEmojiCategory;
+                                <button type="button" class="@(isActive ? "px-3 py-2 rounded-full text-sm whitespace-nowrap bg-pink-500 text-white shadow" : "px-3 py-2 rounded-full text-sm whitespace-nowrap bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => activeEmojiCategory = cat">@cat</button>
+                            }
+                        </div>
+                        <div class="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-56 overflow-y-auto">
+                            @foreach (var emoji in EmojiCategories[activeEmojiCategory])
+                            {
+                                <button type="button" class="text-lg sm:text-xl hover:scale-125 transition p-2 rounded hover:bg-pink-50" @onclick="() => InsertEmoji(emoji)">@emoji</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Список признаний -->
+        <div class="space-y-6">
+            @foreach (var note in Notes)
             {
-                <div id="emoji-picker" class="absolute left-0 top-full mt-2 z-20 w-[min(100%,360px)] bg-white rounded-2xl shadow-2xl p-2 animate-fade-in border border-pink-100 select-none" @onmousedown:stopPropagation>
-                    <div class="flex gap-1 mb-2 overflow-x-auto">
-                        @foreach (var cat in EmojiCategories.Keys)
+                var isDenis = note.UserId == 1;
+                var avatar = isDenis ? "🧔" : "👩";
+                var userName = isDenis ? "Денис" : "Лиза";
+                var bgGradient = isDenis 
+                    ? "bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50" 
+                    : "bg-gradient-to-br from-pink-50 via-rose-50 to-purple-50";
+                var borderColor = isDenis ? "border-blue-200" : "border-pink-200";
+                var textColor = isDenis ? "text-blue-800" : "text-pink-800";
+                
+                <div class="@bgGradient @borderColor border-2 rounded-2xl shadow-lg p-5 transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
+                    <!-- Заголовок признания -->
+                    <div class="flex items-start gap-3 mb-4">
+                        <div class="flex-shrink-0">
+                            <div class="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-2xl">@avatar</div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-semibold @textColor">@userName</span>
+                                <span class="text-xs text-gray-500">@note.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                            </div>
+                            @if (EditId == note.Id)
+                            {
+                                <div class="flex flex-col gap-2">
+                                    <textarea class="w-full rounded-lg border-2 border-pink-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none" rows="3" @bind="EditText"></textarea>
+                                    <div class="flex items-center gap-2">
+                                        <button class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg font-semibold transition" @onclick="() => SaveEdit(note)">Сохранить</button>
+                                        <button class="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm rounded-lg transition" @onclick="() => { EditId = null; EditText = null; }">Отмена</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="@textColor text-base sm:text-lg leading-relaxed break-words">@note.Text</div>
+                            }
+                        </div>
+                        @if (note.UserId == UserId && EditId != note.Id)
                         {
-                            var isActive = cat == activeEmojiCategory;
-                            <button type="button" class="@(isActive ? "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-500 text-white" : "px-3 py-1 rounded-full text-sm whitespace-nowrap bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => activeEmojiCategory = cat">@cat</button>
+                            <div class="flex gap-1">
+                                <button class="p-2 text-gray-400 hover:text-pink-500 hover:bg-white rounded-lg transition" title="Редактировать" @onclick="() => StartEdit(note)">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
+                                    </svg>
+                                </button>
+                                <button class="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition" title="Удалить" @onclick="() => DeleteNote(note)">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         }
                     </div>
-                    <div class="grid grid-cols-6 sm:grid-cols-8 gap-1 max-h-56 overflow-y-auto">
-                        @foreach (var emoji in EmojiCategories[activeEmojiCategory])
+
+                    <!-- Быстрые реакции -->
+                    @if (EditId != note.Id)
+                    {
+                        <div class="flex items-center gap-2 mb-3 flex-wrap">
+                            <span class="text-sm text-gray-600 font-medium">Реакции:</span>
+                            @foreach (var emoji in QuickReactions)
+                            {
+                                var reaction = note.Reactions.FirstOrDefault(r => r.Emoji == emoji);
+                                var hasReaction = reaction != null && reaction.Count > 0;
+                                var userReacted = reaction?.UserReacted ?? false;
+                                
+                                <button class="flex items-center gap-1 px-2 py-1 rounded-full text-sm transition @(userReacted ? "bg-pink-200 text-pink-800 shadow" : "bg-white hover:bg-pink-50 text-gray-600")" 
+                                        @onclick="() => ToggleReaction(note, emoji)">
+                                    <span>@emoji</span>
+                                    @if (hasReaction)
+                                    {
+                                        <span class="font-semibold">@reaction.Count</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+
+                        <!-- Отображение всех реакций -->
+                        @if (note.Reactions.Any())
                         {
-                            <button type="button" class="text-lg sm:text-xl hover:scale-125 transition" @onclick="() => InsertEmoji(emoji)">@emoji</button>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                @foreach (var reaction in note.Reactions.Where(r => r.Count > 0))
+                                {
+                                    <div class="flex items-center gap-1 bg-white/80 px-2 py-1 rounded-full text-sm shadow-sm">
+                                        <span>@reaction.Emoji</span>
+                                        <span class="font-semibold text-gray-700">@reaction.Count</span>
+                                    </div>
+                                }
+                            </div>
                         }
-                    </div>
+                    }
                 </div>
             }
         </div>
-        <div class="space-y-5">
-           @foreach (var note in Notes)
-{
-    var isDenis = note.UserId == 1; // 1 — Денис, 2 — Лиза
-    var emoji = isDenis ? "🧔" : "👩";
-    var bg = isDenis ? "linear-gradient(to right, #e0f2fe, #bae6fd)" : "linear-gradient(to right, #fce7f3, #fbcfe8)";
-    var color = isDenis ? "#2563eb" : "#be185d";
-    <div class="rounded-xl shadow-lg p-4 sm:p-5 flex flex-col gap-2 transition"
-         style="background: @bg">
-        <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xl sm:text-2xl">@emoji</span>
-            @if (EditId == note.Id)
-            {
-                <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
-                    <input class="w-full min-w-0 rounded-lg border px-3 py-2 text-sm sm:text-base" @bind="EditText" />
-                    <div class="flex items-center gap-3">
-                        <button class="text-sm text-green-600 hover:text-green-700 font-semibold" @onclick="() => SaveEdit(note)">Сохранить</button>
-                        <button class="text-sm text-gray-500 hover:text-gray-700" @onclick="() => { EditId = null; EditText = null; }">Отмена</button>
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="text-base sm:text-lg font-semibold flex-1 break-words" style="color:@color">@note.Text</div>
-            }
-            @if (note.UserId == UserId && EditId != note.Id)
-            {
-                <button class="text-xs text-pink-400 hover:text-pink-600" title="Редактировать" @onclick="() => StartEdit(note)">✏️</button>
-                <button class="text-xs text-red-400 hover:text-red-600" title="Удалить" @onclick="() => DeleteNote(note)">🗑</button>
-            }
-        </div>
-        <div class="text-xs sm:text-sm text-gray-400">@note.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
-    </div>
-}
-        </div>
+
+        <!-- Сообщения об ошибках -->
         @if (!string.IsNullOrEmpty(Error))
         {
-            <div class="text-red-500 mt-4">@Error</div>
+            <div class="mt-6 p-4 bg-red-100 border border-red-300 text-red-700 rounded-xl flex justify-between items-center">
+                <span>@Error</span>
+                <button @onclick="() => Error = null" class="text-red-500 hover:text-red-700">✕</button>
+            </div>
+        }
+
+        <!-- Пустое состояние -->
+        @if (!Notes.Any())
+        {
+            <div class="text-center py-12 bg-white/60 rounded-2xl">
+                <div class="text-6xl mb-4">💕</div>
+                <h3 class="text-xl font-semibold text-gray-700 mb-2">Здесь пока тихо...</h3>
+                <p class="text-gray-500 mb-4">Начните делиться своими чувствами!</p>
+                <div class="text-sm text-gray-400">Каждое признание делает ваши отношения крепче ✨</div>
+            </div>
         }
     </div>
 </div>

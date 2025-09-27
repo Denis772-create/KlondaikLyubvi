@@ -10,7 +10,7 @@ public class BucketListService(AppDbContext db)
         var item = await db.BucketItems.Include(b => b.User).FirstOrDefaultAsync(b => b.Id == bucketItemId);
         if (item == null || item.IsCompleted) return false;
         item.IsCompleted = true;
-        if (item.User != null) item.User.LovePoints += 3;
+        // Убрали систему кредитов
         await db.SaveChangesAsync();
         return true;
     }

@@ -6,11 +6,24 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Клондайк Любви</title>
+    <title>Банк Романтики</title>
+    <meta name="description" content="Ваше личное романтическое пространство для создания особенных моментов" />
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ec4899" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Банк Романтики" />
+    
+    <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-    <meta name="theme-color" content="#fce7f3" />
+    
+    <!-- Mobile Optimization -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @@media (max-width: 640px) {
@@ -150,24 +163,27 @@
             <span style="font-size:2rem;color:#d9468f;">🛒</span>
         </button>
     </div>
-    <nav id="main-nav" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex gap-4 bg-white/80 backdrop-blur-md shadow-lg rounded-full px-6 py-2 border border-pink-200">
-        <a href="/" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition">
-            <span class="text-2xl">🏠</span>
+    <nav id="main-nav" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex gap-3 bg-white/90 backdrop-blur-md shadow-lg rounded-full px-4 py-2 border border-pink-200">
+        <a href="/" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Главная">
+            <span class="text-xl">🏠</span>
         </a>
-        <a href="/love" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition">
-            <span class="text-2xl">💌</span>
+        <a href="/love" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Признания">
+            <span class="text-xl">💌</span>
         </a>
-        <a href="/store" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition">
-            <span class="text-2xl">💋</span>
+        <a href="/romance-bank" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Банк Романтики">
+            <span class="text-xl">💝</span>
         </a>
-        <a href="/gallery" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition">
-            <span class="text-2xl">📸</span>
+        <a href="/gallery" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Галерея">
+            <span class="text-xl">📸</span>
         </a>
-        <a href="/calendar" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition">
-            <span class="text-2xl">📅</span>
+        <a href="/invites" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Приглашения">
+            <span class="text-xl">🎟️</span>
         </a>
-        <a href="/invites" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition">
-            <span class="text-2xl">🎟️</span>
+        <a href="/wishlist" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Wishlist">
+            <span class="text-xl">🌟</span>
+        </a>
+        <a href="/calendar" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Календарь">
+            <span class="text-xl">📅</span>
         </a>
     </nav>
     
@@ -267,7 +283,71 @@
         window.getLocal = function(key){ try { return localStorage.getItem(key) || ''; } catch { return ''; } }
         window.setLocal = function(key, value){ try { localStorage.setItem(key, value); } catch {} }
 
-        
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(function(registrationError) {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+
+        // PWA Install Prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Показываем кнопку установки через некоторое время
+            setTimeout(() => {
+                if (deferredPrompt && !localStorage.getItem('pwa-dismissed')) {
+                    showInstallPrompt();
+                }
+            }, 10000);
+        });
+
+        function showInstallPrompt() {
+            const banner = document.createElement('div');
+            banner.innerHTML = `
+                <div style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; background: linear-gradient(135deg, #ec4899, #8b5cf6); color: white; padding: 16px 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-width: 90vw; text-align: center; font-family: system-ui;">
+                    <div style="font-weight: bold; margin-bottom: 8px;">💕 Установить Банк Романтики</div>
+                    <div style="font-size: 14px; margin-bottom: 12px; opacity: 0.9;">Добавьте приложение на главный экран для быстрого доступа</div>
+                    <div style="display: flex; gap: 8px; justify-content: center;">
+                        <button onclick="installPWA()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">Установить</button>
+                        <button onclick="dismissInstall()" style="background: rgba(255,255,255,0.1); border: none; color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer;">Позже</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(banner);
+            
+            setTimeout(() => {
+                if (banner.parentNode) {
+                    banner.style.opacity = '0';
+                    banner.style.transition = 'opacity 0.3s';
+                    setTimeout(() => banner.remove(), 300);
+                }
+            }, 8000);
+        }
+
+        window.installPWA = function() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    deferredPrompt = null;
+                });
+            }
+            dismissInstall();
+        };
+
+        window.dismissInstall = function() {
+            localStorage.setItem('pwa-dismissed', 'true');
+            const banner = document.querySelector('[style*="position: fixed"][style*="top: 20px"]');
+            if (banner) banner.remove();
+        };
     </script>
 </body>
 </html>

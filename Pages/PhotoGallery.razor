@@ -11,6 +11,9 @@
         public DateTime UploadedAt { get; set; }
         public int UserId { get; set; }
         public string? Url => $"/uploads/{FileName}";
+        public List<string> Tags { get; set; } = new();
+        public string? Caption { get; set; }
+        public bool IsFavorite { get; set; }
     }
     List<PhotoDto> Photos = new();
     int UserId = 0;
@@ -18,16 +21,86 @@
     bool IsUploading = false;
     bool IsLightboxOpen = false;
     int LightboxIndex = 0;
-    List<PhotoDto> OrderedPhotos => Photos.OrderByDescending(p => p.UploadedAt).ToList();
+    
+    // Фильтры и сортировка
+    string SearchQuery = "";
+    string SelectedTag = "all";
+    string SortBy = "date"; // date, favorites, name
+    bool ShowFavoritesOnly = false;
+    
+    // Временное хранилище для тегов и избранного (в реальном приложении - в БД)
+    Dictionary<int, List<string>> PhotoTags = new();
+    Dictionary<int, string> PhotoCaptions = new();
+    HashSet<int> FavoritePhotos = new();
+    
+    List<PhotoDto> FilteredPhotos
+    {
+        get
+        {
+            var filtered = Photos.AsEnumerable();
+            
+            // Фильтр по избранному
+            if (ShowFavoritesOnly)
+                filtered = filtered.Where(p => FavoritePhotos.Contains(p.Id));
+            
+            // Фильтр по тегам
+            if (SelectedTag != "all" && PhotoTags.Any())
+                filtered = filtered.Where(p => PhotoTags.ContainsKey(p.Id) && PhotoTags[p.Id].Contains(SelectedTag));
+            
+            // Поиск
+            if (!string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                filtered = filtered.Where(p => 
+                    (PhotoCaptions.ContainsKey(p.Id) && PhotoCaptions[p.Id].Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                    (PhotoTags.ContainsKey(p.Id) && PhotoTags[p.Id].Any(t => t.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))));
+            }
+            
+            // Сортировка
+            return SortBy switch
+            {
+                "favorites" => filtered.OrderByDescending(p => FavoritePhotos.Contains(p.Id)).ThenByDescending(p => p.UploadedAt).ToList(),
+                "name" => filtered.OrderBy(p => PhotoCaptions.ContainsKey(p.Id) ? PhotoCaptions[p.Id] : p.FileName).ToList(),
+                _ => filtered.OrderByDescending(p => p.UploadedAt).ToList()
+            };
+        }
+    }
+    
+    List<PhotoDto> OrderedPhotos => FilteredPhotos;
     int SafeLightboxIndex
         => OrderedPhotos.Count == 0
             ? 0
             : (LightboxIndex < 0 ? 0 : (LightboxIndex >= OrderedPhotos.Count ? OrderedPhotos.Count - 1 : LightboxIndex));
+    
+    List<string> AllTags => PhotoTags.Values.SelectMany(tags => tags).Distinct().OrderBy(t => t).ToList();
     protected override async Task OnInitializedAsync()
     {
         var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
         int.TryParse(userIdStr, out UserId);
         Photos = await Http.GetFromJsonAsync<List<PhotoDto>>("/api/photos") ?? new();
+        
+        // Инициализация демо-данных
+        InitializeDemoData();
+    }
+
+    void InitializeDemoData()
+    {
+        // Добавляем демо-теги и подписи для существующих фото
+        var demoTags = new[] { "романтика", "путешествия", "дом", "праздники", "природа", "еда", "селфи" };
+        var demoCaptions = new[] { "Прекрасный момент", "Незабываемый день", "Наша любовь", "Вместе навсегда", "Счастливые воспоминания" };
+        
+        foreach (var photo in Photos.Take(5))
+        {
+            // Случайные теги
+            var randomTags = demoTags.OrderBy(x => Guid.NewGuid()).Take(Random.Shared.Next(1, 4)).ToList();
+            PhotoTags[photo.Id] = randomTags;
+            
+            // Случайная подпись
+            PhotoCaptions[photo.Id] = demoCaptions[Random.Shared.Next(demoCaptions.Length)];
+            
+            // Случайно добавляем в избранное
+            if (Random.Shared.Next(3) == 0)
+                FavoritePhotos.Add(photo.Id);
+        }
     }
     async Task UploadFiles(ChangeEventArgs e)
     {
@@ -88,55 +161,351 @@
         else if (e.Key == "ArrowRight") NextPhoto();
         else if (e.Key == "ArrowLeft") PrevPhoto();
     }
+
+    void ToggleFavorite(int photoId)
+    {
+        if (FavoritePhotos.Contains(photoId))
+            FavoritePhotos.Remove(photoId);
+        else
+            FavoritePhotos.Add(photoId);
+    }
+
+    void AddTag(int photoId, string tag)
+    {
+        if (!PhotoTags.ContainsKey(photoId))
+            PhotoTags[photoId] = new List<string>();
+            
+        if (!PhotoTags[photoId].Contains(tag))
+            PhotoTags[photoId].Add(tag);
+    }
+
+    void RemoveTag(int photoId, string tag)
+    {
+        if (PhotoTags.ContainsKey(photoId))
+            PhotoTags[photoId].Remove(tag);
+    }
+
+    void SetCaption(int photoId, string caption)
+    {
+        PhotoCaptions[photoId] = caption;
+    }
+
+    void ClearTagFilter()
+    {
+        SelectedTag = "all";
+    }
+
+    void ClearAllFilters()
+    {
+        SearchQuery = string.Empty;
+        SelectedTag = "all";
+        ShowFavoritesOnly = false;
+    }
 }
 
-<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
-    <div class="max-w-5xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
-        <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
-            <h1 class="text-3xl font-bold text-pink-600 flex items-center gap-2">
-                <span class="inline-block text-4xl">📸</span> Наша фотогалерея
-            </h1>
-            <label class="relative inline-flex items-center cursor-pointer group" title="Загрузить фото">
-                <input type="file" accept="image/*" multiple class="hidden" @onchange="UploadFiles" />
-                <span class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center transition transform group-hover:scale-105 active:scale-95 group-hover:shadow-pink-300/70" aria-label="Загрузить фото">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 7h3.5l1.5-2h6l1.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
-                        <circle cx="12" cy="13" r="3.5" />
-                        <path d="M12 5v2" />
-                    </svg>
-                    <span class="sr-only">Загрузить</span>
-                </span>
-            </label>
+<div class="bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100 min-h-screen py-6 px-4 font-sans">
+    <div class="max-w-7xl mx-auto">
+        <!-- Заголовок -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <span class="text-4xl animate-pulse">📸</span>
+                <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                    Галерея Воспоминаний
+                </h1>
+                <span class="text-4xl animate-pulse">✨</span>
+            </div>
+            <p class="text-gray-600 mb-4 text-sm sm:text-base">Сохраняйте особенные моменты вашей истории любви</p>
         </div>
+
+        <!-- Статистика -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-pink-600">@Photos.Count</div>
+                <div class="text-xs text-gray-600">Всего фото</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-purple-600">@FavoritePhotos.Count</div>
+                <div class="text-xs text-gray-600">Избранных</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-rose-600">@AllTags.Count</div>
+                <div class="text-xs text-gray-600">Тегов</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-blue-600">@Photos.Count(p => p.UploadedAt.Date == DateTime.Today)</div>
+                <div class="text-xs text-gray-600">Сегодня</div>
+            </div>
+        </div>
+
+        <!-- Панель управления -->
+        <div class="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 mb-8">
+            <div class="flex flex-wrap items-center gap-4 mb-4">
+                <!-- Поиск -->
+                <div class="flex-1 min-w-64">
+                    <input @bind="SearchQuery" @bind:event="oninput" class="w-full rounded-xl border-2 border-pink-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400" placeholder="Поиск по подписям и тегам..." />
+                </div>
+                
+                <!-- Фильтры -->
+                <select @bind="SelectedTag" class="rounded-xl border-2 border-pink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400">
+                    <option value="all">Все теги</option>
+                    @foreach (var tag in AllTags)
+                    {
+                        <option value="@tag">#@tag</option>
+                    }
+                </select>
+                
+                <select @bind="SortBy" class="rounded-xl border-2 border-pink-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-400">
+                    <option value="date">По дате</option>
+                    <option value="favorites">Избранные первыми</option>
+                    <option value="name">По названию</option>
+                </select>
+                
+                <!-- Кнопка избранного -->
+                <button @onclick="() => ShowFavoritesOnly = !ShowFavoritesOnly" 
+                        class="px-4 py-2 rounded-xl font-semibold text-sm transition @(ShowFavoritesOnly ? "bg-pink-500 text-white shadow-lg" : "bg-pink-100 text-pink-600 hover:bg-pink-200")">
+                    ⭐ Избранные
+                </button>
+                
+                <!-- Загрузка -->
+                <label class="relative inline-flex items-center cursor-pointer group" title="Загрузить фото">
+                    <input type="file" accept="image/*" multiple class="hidden" @onchange="UploadFiles" />
+                    <span class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg flex items-center gap-2 transition transform group-hover:scale-105 active:scale-95 font-semibold text-sm">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 7h3.5l1.5-2h6l1.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
+                            <circle cx="12" cy="13" r="3.5" />
+                        </svg>
+                        Загрузить
+                    </span>
+                </label>
+            </div>
+            
+            <!-- Активные фильтры -->
+            @if (!string.IsNullOrWhiteSpace(SearchQuery) || SelectedTag != "all" || ShowFavoritesOnly)
+            {
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm text-gray-600">Активные фильтры:</span>
+                    @if (!string.IsNullOrWhiteSpace(SearchQuery))
+                    {
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                            Поиск: "@SearchQuery"
+                            <button @onclick="() => SearchQuery = string.Empty" class="hover:text-blue-600">×</button>
+                        </span>
+                    }
+                    @if (SelectedTag != "all")
+                    {
+                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                            #@SelectedTag
+                            <button @onclick="ClearTagFilter" class="hover:text-green-600">×</button>
+                        </span>
+                    }
+                    @if (ShowFavoritesOnly)
+                    {
+                        <span class="bg-pink-100 text-pink-800 px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                            ⭐ Избранные
+                            <button @onclick="() => ShowFavoritesOnly = false" class="hover:text-pink-600">×</button>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+
         @if (!string.IsNullOrEmpty(Error))
         {
-            <div class="text-red-500 mb-4">@Error</div>
+            <div class="mb-6 p-4 bg-red-100 border border-red-300 text-red-700 rounded-xl flex justify-between items-center">
+                <span>@Error</span>
+                <button @onclick="() => Error = null" class="text-red-500 hover:text-red-700">✕</button>
+            </div>
         }
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        <!-- Сетка фотографий -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             @for (var i = 0; i < OrderedPhotos.Count; i++)
             {
                 var p = OrderedPhotos[i];
-                <div class="relative group rounded-xl overflow-hidden shadow-lg bg-white cursor-zoom-in" @onclick="@(e => OpenLightbox(i))">
-                    <img src="@p.Url" alt="photo" class="w-full h-44 object-cover group-hover:scale-105 transition-transform" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition flex items-end">
-                        <div class="w-full flex items-center justify-between p-2 text-white text-xs">
-                            <span>@p.UploadedAt.ToLocalTime().ToString("dd.MM.yyyy")</span>
-                            <button class="bg-red-500/80 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center" @onclick:stopPropagation="true" @onclick="() => DeletePhoto(p.Id)">🗑</button>
+                var isFavorite = FavoritePhotos.Contains(p.Id);
+                var tags = PhotoTags.ContainsKey(p.Id) ? PhotoTags[p.Id] : new List<string>();
+                var caption = PhotoCaptions.ContainsKey(p.Id) ? PhotoCaptions[p.Id] : null;
+                
+                <div class="group bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
+                    <!-- Фото -->
+                    <div class="relative cursor-zoom-in" @onclick="@(e => OpenLightbox(i))">
+                        <img src="@p.Url" alt="photo" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" />
+                        
+                        <!-- Оверлей с кнопками -->
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <!-- Кнопки в верхнем углу -->
+                            <div class="absolute top-2 right-2 flex gap-2">
+                                <button @onclick:stopPropagation="true" @onclick="() => ToggleFavorite(p.Id)" 
+                                        class="w-8 h-8 rounded-full flex items-center justify-center transition @(isFavorite ? "bg-yellow-400 text-yellow-900" : "bg-white/80 text-gray-600 hover:bg-yellow-100")">
+                                    ⭐
+                                </button>
+                                <button @onclick:stopPropagation="true" @onclick="() => DeletePhoto(p.Id)" 
+                                        class="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center transition">
+                                    🗑
+                                </button>
+                            </div>
+                            
+                            <!-- Дата в нижнем углу -->
+                            <div class="absolute bottom-2 left-2">
+                                <span class="bg-black/60 text-white px-2 py-1 rounded-full text-xs">
+                                    @p.UploadedAt.ToLocalTime().ToString("dd.MM.yyyy")
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Информация о фото -->
+                    <div class="p-4">
+                        <!-- Подпись -->
+                        @if (!string.IsNullOrWhiteSpace(caption))
+                        {
+                            <div class="text-sm font-medium text-gray-800 mb-2 line-clamp-2">@caption</div>
+                        }
+                        else
+                        {
+                            <div class="text-sm text-gray-500 mb-2 italic">Без подписи</div>
+                        }
+                        
+                        <!-- Теги -->
+                        @if (tags.Any())
+                        {
+                            <div class="flex flex-wrap gap-1 mb-3">
+                                @foreach (var tag in tags.Take(3))
+                                {
+                                    <span class="bg-pink-100 text-pink-700 px-2 py-1 rounded-full text-xs font-medium">
+                                        #@tag
+                                    </span>
+                                }
+                                @if (tags.Count > 3)
+                                {
+                                    <span class="text-xs text-gray-500 px-2 py-1">+@(tags.Count - 3)</span>
+                                }
+                            </div>
+                        }
+                        
+                        <!-- Метаинформация -->
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <span>@p.UploadedAt.ToLocalTime().ToString("HH:mm")</span>
+                            @if (isFavorite)
+                            {
+                                <span class="text-yellow-600 font-medium">⭐ Избранное</span>
+                            }
                         </div>
                     </div>
                 </div>
             }
         </div>
+
+        <!-- Пустое состояние -->
+        @if (!OrderedPhotos.Any())
+        {
+            <div class="text-center py-16 bg-white/60 rounded-2xl">
+                @if (!Photos.Any())
+                {
+                    <div class="text-6xl mb-4">📸</div>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-2">Галерея пуста</h3>
+                    <p class="text-gray-500 mb-4">Загрузите первые фотографии ваших воспоминаний!</p>
+                }
+                else
+                {
+                    <div class="text-6xl mb-4">🔍</div>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-2">Ничего не найдено</h3>
+                    <p class="text-gray-500 mb-4">Попробуйте изменить фильтры или поисковый запрос</p>
+                    <button @onclick="ClearAllFilters" 
+                            class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-xl font-semibold transition">
+                        Сбросить фильтры
+                    </button>
+                }
+            </div>
+        }
+        <!-- Лайтбокс -->
         @if (IsLightboxOpen && OrderedPhotos.Count > 0)
         {
-            <div id="lightbox" tabindex="0" class="fixed inset-0 bg-black/80 flex items-center justify-center select-none" style="z-index:9999;" @onclick="CloseLightbox" @onkeydown="OnLightboxKey">
-                <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl" @onclick:stopPropagation="true" @onclick="PrevPhoto">‹</button>
-                <img src="@OrderedPhotos[SafeLightboxIndex].Url" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl" @onclick:stopPropagation="true" />
-                <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-4xl" @onclick:stopPropagation="true" @onclick="NextPhoto">›</button>
-                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/40 px-3 py-1 rounded-full">
-                    @OrderedPhotos[SafeLightboxIndex].UploadedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            var currentPhoto = OrderedPhotos[SafeLightboxIndex];
+            var currentTags = PhotoTags.TryGetValue(currentPhoto.Id, out var photoTag) ? photoTag : new List<string>();
+            var currentCaption = PhotoCaptions.ContainsKey(currentPhoto.Id) ? PhotoCaptions[currentPhoto.Id] : null;
+            var isCurrentFavorite = FavoritePhotos.Contains(currentPhoto.Id);
+            
+            <div id="lightbox" tabindex="0" class="fixed inset-0 bg-black/90 flex items-center justify-center select-none animate-fade-in" style="z-index:9999;" @onclick="CloseLightbox" @onkeydown="OnLightboxKey">
+                <!-- Кнопка закрытия -->
+                <button class="absolute top-4 right-4 text-white/80 hover:text-white text-3xl z-10" @onclick:stopPropagation="true" @onclick="CloseLightbox">×</button>
+                
+                <!-- Навигация -->
+                @if (OrderedPhotos.Count > 1)
+                {
+                    <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-5xl z-10 transition" @onclick:stopPropagation="true" @onclick="PrevPhoto">‹</button>
+                    <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-5xl z-10 transition" @onclick:stopPropagation="true" @onclick="NextPhoto">›</button>
+                }
+                
+                <!-- Изображение -->
+                <div class="flex flex-col items-center max-w-[95vw] max-h-[95vh]" @onclick:stopPropagation="true">
+                    <img src="@currentPhoto.Url" class="max-w-full max-h-[80vh] rounded-xl shadow-2xl mb-4" />
+                    
+                    <!-- Информация о фото -->
+                    <div class="bg-black/60 backdrop-blur-sm rounded-xl p-4 max-w-lg text-center">
+                        <!-- Подпись -->
+                        @if (!string.IsNullOrWhiteSpace(currentCaption))
+                        {
+                            <div class="text-white text-lg font-medium mb-2">@currentCaption</div>
+                        }
+                        
+                        <!-- Теги -->
+                        @if (currentTags.Any())
+                        {
+                            <div class="flex flex-wrap justify-center gap-2 mb-3">
+                                @foreach (var tag in currentTags)
+                                {
+                                    <span class="bg-pink-500/80 text-white px-2 py-1 rounded-full text-sm">
+                                        #@tag
+                                    </span>
+                                }
+                            </div>
+                        }
+                        
+                        <!-- Метаинформация -->
+                        <div class="flex items-center justify-center gap-4 text-white/80 text-sm">
+                            <span>@currentPhoto.UploadedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                            @if (isCurrentFavorite)
+                            {
+                                <span class="text-yellow-400">⭐ Избранное</span>
+                            }
+                            @if (OrderedPhotos.Count > 1)
+                            {
+                                <span>@(SafeLightboxIndex + 1) из @OrderedPhotos.Count</span>
+                            }
+                        </div>
+                        
+                        <!-- Кнопки действий -->
+                        <div class="flex justify-center gap-3 mt-3">
+                            <button @onclick:stopPropagation="true" @onclick="() => ToggleFavorite(currentPhoto.Id)" 
+                                    class="px-3 py-2 rounded-lg transition @(isCurrentFavorite ? "bg-yellow-500 text-yellow-900" : "bg-white/20 text-white hover:bg-white/30")">
+                                ⭐ @(isCurrentFavorite ? "Убрать из избранного" : "В избранное")
+                            </button>
+                            <button @onclick:stopPropagation="true" @onclick="() => DeletePhoto(currentPhoto.Id)" 
+                                    class="px-3 py-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg transition">
+                                🗑 Удалить
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         }
     </div>
 </div>
+
+<style>
+.line-clamp-2 { 
+    display: -webkit-box; 
+    -webkit-line-clamp: 2; 
+    -webkit-box-orient: vertical; 
+    overflow: hidden; 
+}
+
+.animate-fade-in { 
+    animation: fade-in 0.2s cubic-bezier(.4,0,.2,1) both; 
+}
+
+@@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+</style>

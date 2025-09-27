@@ -13,7 +13,7 @@ public class AuthService(AppDbContext db)
             var today = DateTime.UtcNow.Date;
             if (user.LastVisit == null || user.LastVisit.Value.Date < today)
             {
-                user.LovePoints++;
+                // Убрали систему кредитов
                 user.LastVisit = DateTime.UtcNow;
                 await db.SaveChangesAsync();
             }

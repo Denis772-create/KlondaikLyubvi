@@ -18,7 +18,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddSingleton<TelegramService>();
 builder.Services.AddScoped<LoveNoteService>();
-builder.Services.AddScoped<LoveStoreService>();
+builder.Services.AddScoped<RomanceExchangeService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<WishlistService>();
 // HttpClient for Blazor Server: resolve BaseAddress from NavigationManager within scoped lifetime
@@ -110,43 +110,26 @@ app.MapPost("/api/login", async (HttpContext ctx, [FromBody] LoginRequest req, A
     var userId = await auth.ValidateUserAsync(req.UserName, req.Password);
     if (userId != null)
     {
-        ctx.Response.Cookies.Append("userId", userId.ToString(), new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Strict, Expires = DateTimeOffset.Now + TimeSpan.FromDays(1)});
+        ctx.Response.Cookies.Append("userId", userId?.ToString() ?? "", new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Strict, Expires = DateTimeOffset.Now + TimeSpan.FromDays(1)});
         return Results.Ok(userId);
     }
     return Results.Unauthorized();
 });
 
 app.MapGet("/api/storeitems", async (AppDbContext db) =>
-    await db.StoreItems.Select(x => new { x.Id, x.Name, x.Description, x.Price }).ToListAsync()
+    await db.ServiceOffers.Select(x => new { x.Id, x.Name, x.Description, x.Emoji }).ToListAsync()
 );
 
-app.MapGet("/api/balance/{userId}", async (int userId, LoveStoreService store) => await store.GetBalanceAsync(userId));
+// Убрали систему кредитов - теперь прямой обмен услугами
 
-app.MapPost("/api/buy",
-    async (BuyRequest req, LoveStoreService store) =>
-        await store.BuyAsync(req.UserId, req.StoreItemId, req.IsGift, req.ToUserId, req.ExecutionDate, req.GiftStartDate, req.GiftEndDate, req.GiftCount));
+// Legacy endpoint - deprecated
+app.MapPost("/api/buy", () => Results.BadRequest("This endpoint is deprecated. Use /api/exchanges/request instead."));
 
-app.MapGet("/api/history/{userId}", async (int userId, LoveStoreService store, AppDbContext db) =>
-{
-    var history = await store.GetHistoryAsync(userId);
-    var result = history.Select(t => new {
-        t.Id,
-        StoreItemName = t.StoreItem != null ? t.StoreItem.Name : null,
-        UserName = t.User != null ? t.User.DisplayName : null,
-        ToUserName = t.ToUser != null ? t.ToUser.DisplayName : null,
-        t.Date,
-        t.IsGift,
-        t.ExecutionDate,
-        t.IsExecuted,
-        t.GiftStartDate,
-        t.GiftEndDate,
-        t.GiftCount
-    });
-    return Results.Ok(result);
-});
+// Legacy endpoint - use /api/exchanges/history/{userId} instead
+app.MapGet("/api/history/{userId}", () => Results.BadRequest("This endpoint is deprecated. Use /api/exchanges/history/{userId} instead."));
 
 app.MapGet("/api/users", async (AppDbContext db) =>
-    await db.Users.Select(u => new { u.Id, u.UserName, u.LovePoints }).ToListAsync()
+    await db.Users.Select(u => new { u.Id, u.UserName, u.DisplayName }).ToListAsync()
 );
 
 app.MapDelete("/api/lovenotes/{id}", async (int id, AppDbContext db) =>
@@ -209,7 +192,7 @@ app.MapPost("/api/admin/addpoints", async ([FromBody] PointsRequest req, AppDbCo
     int amount = req.Amount;
     var user = await db.Users.FindAsync(userId);
     if (user == null) return Results.BadRequest("User not found");
-    user.LovePoints += amount;
+    // Убрали систему кредитов
     await db.SaveChangesAsync();
     return Results.Ok();
 });
@@ -220,78 +203,47 @@ app.MapPost("/api/admin/subtractpoints", async ([FromBody] PointsRequest req, Ap
     int amount = req.Amount;
     var user = await db.Users.FindAsync(userId);
     if (user == null) return Results.BadRequest("User not found");
-    user.LovePoints -= amount;
-    if (user.LovePoints < 0) user.LovePoints = 0;
+    // Убрали систему кредитов
     await db.SaveChangesAsync();
     return Results.Ok();
 });
 
-app.MapGet("/api/gifts/{userId}", async (int userId, LoveStoreService store) =>
-{
-    var gifts = await store.GetHistoryAsync(userId);
-    return Results.Ok(gifts.Where(t => t.IsGift && t.ToUserId == userId).Select(t => new {
-        t.Id,
-        StoreItemName = t.StoreItem != null ? t.StoreItem.Name : null,
-        UserName = t.User != null ? t.User.DisplayName : null,
-        ToUserName = t.ToUser != null ? t.ToUser.DisplayName : null,
-        t.Date,
-        t.IsGift,
-        t.ExecutionDate,
-        t.IsExecuted,
-        t.GiftStartDate,
-        t.GiftEndDate,
-        t.GiftCount
-    }));
-});
+// Legacy endpoint - deprecated
+app.MapGet("/api/gifts/{userId}", () => Results.BadRequest("This endpoint is deprecated. Use /api/exchanges/pending/{userId} instead."));
 
-app.MapPost("/api/gifts/execute/{giftId}", async (int giftId, AppDbContext db) =>
-{
-    var gift = await db.LoveCoinTransactions.FindAsync(giftId);
-    if (gift == null || !gift.IsGift) return Results.NotFound();
-    gift.IsExecuted = true;
-    await db.SaveChangesAsync();
-    return Results.Ok();
-});
+// Legacy endpoint - deprecated
+app.MapPost("/api/gifts/execute/{giftId}", () => Results.BadRequest("This endpoint is deprecated. Use /api/exchanges/complete instead."));
 
-app.MapPost("/api/gifts/exchange/{giftId}", async (int giftId, AppDbContext db) =>
-{
-    var gift = await db.LoveCoinTransactions.Include(t => t.StoreItem).FirstOrDefaultAsync(t => t.Id == giftId);
-    if (gift == null || !gift.IsGift || gift.IsExecuted) return Results.NotFound();
-    if (gift.ToUserId == null || gift.StoreItem == null) return Results.BadRequest();
-    var recipient = await db.Users.FindAsync(gift.ToUserId);
-    if (recipient == null) return Results.BadRequest();
-    recipient.LovePoints += gift.StoreItem.Price;
-    gift.IsExecuted = true;
-    await db.SaveChangesAsync();
-    return Results.Ok();
-});
+// Legacy endpoint - deprecated
+app.MapPost("/api/gifts/exchange/{giftId}", () => Results.BadRequest("This endpoint is deprecated."));
 
 app.MapGet("/api/myitems/{userId}", async (int userId, AppDbContext db) =>
-    await db.StoreItems.Where(x => x.UserId == userId).Select(x => new { x.Id, x.Name, x.Description, x.Price, x.Emoji }).ToListAsync()
+    await db.ServiceOffers.Where(x => x.UserId == userId).Select(x => new { x.Id, x.Name, x.Description, x.Emoji, x.Category }).ToListAsync()
 );
 
 app.MapPost("/api/storeitems", async (AppDbContext db, [FromBody] StoreItemCreateDto dto) =>
 {
-    var item = new StoreItem
+    var item = new ServiceOffer
     {
         Name = dto.Name,
         Description = dto.Description,
-        Price = dto.Price,
+        // Убрали TrustCost 
         Emoji = dto.Emoji,
-        UserId = dto.UserId
+        UserId = dto.UserId,
+        Category = "Общее"
     };
-    db.StoreItems.Add(item);
+    db.ServiceOffers.Add(item);
     await db.SaveChangesAsync();
     return Results.Ok();
 });
 
 app.MapPut("/api/storeitems/{id}", async (int id, AppDbContext db, [FromBody] StoreItemCreateDto dto) =>
 {
-    var item = await db.StoreItems.FindAsync(id);
+    var item = await db.ServiceOffers.FindAsync(id);
     if (item == null) return Results.NotFound();
     item.Name = dto.Name;
     item.Description = dto.Description;
-    item.Price = dto.Price;
+    // Убрали TrustCost
     item.Emoji = dto.Emoji;
     await db.SaveChangesAsync();
     return Results.Ok();
@@ -299,15 +251,15 @@ app.MapPut("/api/storeitems/{id}", async (int id, AppDbContext db, [FromBody] St
 
 app.MapDelete("/api/storeitems/{id}", async (int id, AppDbContext db) =>
 {
-    var item = await db.StoreItems.FindAsync(id);
+    var item = await db.ServiceOffers.FindAsync(id);
     if (item == null) return Results.NotFound();
-    db.StoreItems.Remove(item);
+    db.ServiceOffers.Remove(item);
     await db.SaveChangesAsync();
     return Results.Ok();
 });
 
 app.MapGet("/api/storeitems/for/{userId}", async (int userId, AppDbContext db) =>
-    await db.StoreItems.Where(x => x.UserId != userId).Select(x => new { x.Id, x.Name, x.Description, x.Price, x.Emoji }).ToListAsync()
+    await db.ServiceOffers.Where(x => x.UserId != userId && x.IsActive).Select(x => new { x.Id, x.Name, x.Description, x.Emoji, x.Category }).ToListAsync()
 );
 
 // Calendar events (purchases execution dates, invites, active gifts)
@@ -316,17 +268,20 @@ app.MapGet("/api/calendar/{userId}", async (int userId, int year, int month, App
     var start = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
     var end = start.AddMonths(1);
 
-    // Purchases: not gifts, execution date in month, not executed
-    var purchases = await db.LoveCoinTransactions
-        .Include(t => t.StoreItem)
-        .Where(t => !t.IsGift && t.UserId == userId && t.ExecutionDate != null && t.ExecutionDate >= start && t.ExecutionDate < end && !t.IsExecuted)
-        .Select(t => new {
-            Id = t.Id,
-            Date = t.ExecutionDate!.Value,
-            Title = "Исполнить: " + (t.StoreItem != null ? t.StoreItem.Name : "услуга"),
-            Emoji = t.StoreItem != null ? t.StoreItem.Emoji : "💋",
-            Type = "purchase",
-            Description = "Запланированное исполнение покупки"
+    // Active exchanges with scheduled dates
+    var exchanges = await db.ServiceExchanges
+        .Include(e => e.RequestedService)
+        .Where(e => (e.RequesterId == userId || e.ProviderId == userId) && 
+                   e.Status == ExchangeStatus.Accepted && 
+                   e.ScheduledDate != null && 
+                   e.ScheduledDate >= start && e.ScheduledDate < end)
+        .Select(e => new {
+            Id = e.Id,
+            Date = e.ScheduledDate!.Value,
+            Title = "Обмен: " + (e.RequestedService != null ? e.RequestedService.Name : "услуга"),
+            Emoji = e.RequestedService != null ? e.RequestedService.Emoji : "💝",
+            Type = "exchange",
+            Description = "Запланированный обмен услугами"
         })
         .ToListAsync();
 
@@ -343,32 +298,7 @@ app.MapGet("/api/calendar/{userId}", async (int userId, int year, int month, App
         })
         .ToListAsync();
 
-    // Gifts for me: active range days
-    var giftRanges = await db.LoveCoinTransactions
-        .Include(t => t.StoreItem)
-        .Where(t => t.IsGift && t.ToUserId == userId && t.GiftStartDate != null && t.GiftEndDate != null && t.GiftEndDate >= start && t.GiftStartDate < end)
-        .Select(t => new {
-            Id = t.Id,
-            Start = t.GiftStartDate!.Value,
-            End = t.GiftEndDate!.Value,
-            Title = "Подарок: " + (t.StoreItem != null ? t.StoreItem.Name : "приятность"),
-            Emoji = t.StoreItem != null ? t.StoreItem.Emoji : "🎁",
-            Description = "Подарок можно использовать в этот день"
-        })
-        .ToListAsync();
-
-    var giftDayEvents = new List<object>();
-    foreach (var g in giftRanges)
-    {
-        var day = new DateTime(Math.Max(g.Start.Ticks, start.Ticks));
-        var last = new DateTime(Math.Min(g.End.Ticks, end.AddDays(-1).Ticks));
-        for (var d = day.Date; d <= last.Date; d = d.AddDays(1))
-        {
-            giftDayEvents.Add(new { Date = d, Title = g.Title, Emoji = g.Emoji, Type = "gift", Description = g.Description, g.Id });
-        }
-    }
-
-    var all = purchases.Cast<object>().Concat(invites).Concat(giftDayEvents)
+    var all = exchanges.Cast<object>().Concat(invites)
         .OrderBy(x => (DateTime)x.GetType().GetProperty("Date")!.GetValue(x)!)
         .Select(x => new {
             id = (int)(x.GetType().GetProperty("Id")?.GetValue(x) ?? 0),
@@ -476,4 +406,183 @@ app.MapDelete("/api/wishlist/{id}", async (int id, WishlistService svc) =>
     var ok = await svc.DeleteAsync(id);
     return ok ? Results.Ok() : Results.NotFound();
 });
+
+// Romance Exchange API endpoints
+app.MapGet("/api/services/available/{userId}", async (int userId, RomanceExchangeService service) =>
+{
+    var services = await service.GetAvailableServicesAsync(userId);
+    return Results.Ok(services.Select(s => new {
+        s.Id, s.Name, s.Description, s.Emoji, s.UserId, 
+        UserDisplayName = s.User?.DisplayName, s.Category, s.IsActive, s.CreatedAt
+    }));
+});
+
+app.MapGet("/api/services/my/{userId}", async (int userId, RomanceExchangeService service) =>
+{
+    var services = await service.GetMyServicesAsync(userId);
+    return Results.Ok(services.Select(s => new {
+        s.Id, s.Name, s.Description, s.Emoji, s.UserId, 
+        UserDisplayName = s.User?.DisplayName, s.Category, s.IsActive, s.CreatedAt
+    }));
+});
+
+app.MapGet("/api/exchanges/pending/{userId}", async (int userId, RomanceExchangeService service) =>
+{
+    var exchanges = await service.GetPendingRequestsAsync(userId);
+    return Results.Ok(exchanges.Select(e => new {
+        e.Id, e.RequesterId, RequesterName = e.Requester?.DisplayName, 
+        e.ProviderId, ProviderName = e.Provider?.DisplayName,
+        RequestedServiceName = e.RequestedService?.Name, RequestedServiceEmoji = e.RequestedService?.Emoji,
+        OfferedServiceName = e.OfferedService?.Name, OfferedServiceEmoji = e.OfferedService?.Emoji,
+        e.RequestDate, e.ScheduledDate, Status = e.Status.ToString(),
+        e.RequestMessage, e.ResponseMessage, e.CompletedDate, e.Rating, e.Review
+    }));
+});
+
+app.MapGet("/api/exchanges/active/{userId}", async (int userId, RomanceExchangeService service) =>
+{
+    var exchanges = await service.GetActiveExchangesAsync(userId);
+    return Results.Ok(exchanges.Select(e => new {
+        e.Id, e.RequesterId, RequesterName = e.Requester?.DisplayName, 
+        e.ProviderId, ProviderName = e.Provider?.DisplayName,
+        RequestedServiceName = e.RequestedService?.Name, RequestedServiceEmoji = e.RequestedService?.Emoji,
+        OfferedServiceName = e.OfferedService?.Name, OfferedServiceEmoji = e.OfferedService?.Emoji,
+        e.RequestDate, e.ScheduledDate, Status = e.Status.ToString(),
+        e.RequestMessage, e.ResponseMessage, e.CompletedDate, e.Rating, e.Review
+    }));
+});
+
+app.MapGet("/api/exchanges/history/{userId}", async (int userId, RomanceExchangeService service) =>
+{
+    var exchanges = await service.GetMyExchangesAsync(userId);
+    return Results.Ok(exchanges.Select(e => new {
+        e.Id, e.RequesterId, RequesterName = e.Requester?.DisplayName, 
+        e.ProviderId, ProviderName = e.Provider?.DisplayName,
+        RequestedServiceName = e.RequestedService?.Name, RequestedServiceEmoji = e.RequestedService?.Emoji,
+        OfferedServiceName = e.OfferedService?.Name, OfferedServiceEmoji = e.OfferedService?.Emoji,
+        e.RequestDate, e.ScheduledDate, Status = e.Status.ToString(),
+        e.RequestMessage, e.ResponseMessage, e.CompletedDate, e.Rating, e.Review
+    }));
+});
+
+app.MapPost("/api/exchanges/request", async ([FromBody] ExchangeRequestDto req, RomanceExchangeService service, AppDbContext db) =>
+{
+    try
+    {
+        // Проверяем, что пользователь существует
+        var user = await db.Users.FindAsync(req.RequesterId);
+        if (user == null)
+            return Results.BadRequest($"Пользователь с ID {req.RequesterId} не найден");
+            
+        // Проверяем, что услуга существует
+        var requestedService = await db.ServiceOffers.FindAsync(req.RequestedServiceId);
+        if (requestedService == null)
+            return Results.BadRequest($"Услуга с ID {req.RequestedServiceId} не найдена");
+            
+        if (!requestedService.IsActive)
+            return Results.BadRequest("Услуга неактивна");
+        
+        var success = await service.RequestServiceAsync(req.RequesterId, req.RequestedServiceId, req.OfferedServiceId, req.ScheduledDate, req.Message);
+        return success ? Results.Ok() : Results.BadRequest("Не удалось создать запрос на обмен");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
+app.MapPost("/api/exchanges/respond", async ([FromBody] ExchangeResponseDto req, RomanceExchangeService service) =>
+{
+    try
+    {
+        var success = await service.RespondToRequestAsync(req.ExchangeId, req.Accept, req.ResponseMessage, req.NewScheduledDate);
+        return success ? Results.Ok() : Results.BadRequest("Ошибка обработки ответа");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
+app.MapPost("/api/exchanges/complete", async ([FromBody] ExchangeCompleteDto req, RomanceExchangeService service) =>
+{
+    try
+    {
+        var success = await service.CompleteExchangeAsync(req.ExchangeId, req.Rating, req.Review);
+        return success ? Results.Ok() : Results.BadRequest("Ошибка завершения обмена");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
+// Debug endpoint для проверки данных
+app.MapGet("/api/debug/data/{userId}", async (int userId, AppDbContext db) =>
+{
+    var user = await db.Users.FindAsync(userId);
+    var services = await db.ServiceOffers.Where(s => s.UserId != userId).ToListAsync();
+    var myServices = await db.ServiceOffers.Where(s => s.UserId == userId).ToListAsync();
+    
+    return Results.Ok(new {
+        User = user != null ? new { user.Id, user.DisplayName } : null,
+        AvailableServices = services.Count,
+        MyServices = myServices.Count,
+        Services = services.Select(s => new { s.Id, s.Name, s.IsActive, s.UserId }).ToList()
+    });
+});
+
+// Service management endpoints
+app.MapPost("/api/services", async ([FromBody] ServiceOfferCreateDto req, RomanceExchangeService service) =>
+{
+    try
+    {
+        var serviceOffer = await service.CreateServiceOfferAsync(req.UserId, req.Name, req.Description, req.Emoji, req.Category);
+        return Results.Ok(new { serviceOffer.Id, serviceOffer.Name, serviceOffer.Description, serviceOffer.Emoji, serviceOffer.Category });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
+app.MapPut("/api/services/{serviceId}", async (int serviceId, [FromBody] ServiceOfferCreateDto req, RomanceExchangeService service) =>
+{
+    try
+    {
+        var success = await service.UpdateServiceOfferAsync(serviceId, req.UserId, req.Name, req.Description, req.Emoji, req.Category);
+        return success ? Results.Ok() : Results.BadRequest("Услуга не найдена или нет прав на редактирование");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
+app.MapDelete("/api/services/{serviceId}/{userId}", async (int serviceId, int userId, RomanceExchangeService service) =>
+{
+    try
+    {
+        var success = await service.DeleteServiceOfferAsync(serviceId, userId);
+        return success ? Results.Ok() : Results.BadRequest("Услуга не найдена или нет прав на удаление");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
+app.MapPost("/api/services/{serviceId}/toggle/{userId}", async (int serviceId, int userId, RomanceExchangeService service) =>
+{
+    try
+    {
+        var success = await service.ToggleServiceActiveAsync(serviceId, userId);
+        return success ? Results.Ok() : Results.BadRequest("Услуга не найдена или нет прав на изменение");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Ошибка: {ex.Message}");
+    }
+});
+
 app.Run();

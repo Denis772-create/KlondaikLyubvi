@@ -59,35 +59,167 @@
     }
 }
 
-<div class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen py-10 px-4 font-sans">
-    <div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6">
-        <div class="flex items-center justify-between mb-6">
-            <h1 class="text-3xl font-bold text-pink-600 flex items-center gap-2">
-                <span class="inline-block text-4xl">🎟️</span> Приглашения
-            </h1>
-            <button id="invites-add" class="rounded-full w-12 h-12 bg-pink-500 hover:bg-pink-600 text-white text-2xl shadow" @onclick="() => ShowModal = true">＋</button>
+<div class="bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100 min-h-screen py-6 px-4 font-sans">
+    <div class="max-w-4xl mx-auto">
+        <!-- Заголовок -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <span class="text-4xl animate-pulse">🎟️</span>
+                <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                    Романтические Приглашения
+                </h1>
+                <span class="text-4xl animate-pulse">✨</span>
+            </div>
+            <p class="text-gray-600 mb-4 text-sm sm:text-base">Планируйте особенные моменты вместе</p>
+            <button class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white rounded-xl font-semibold transition transform hover:scale-105 shadow-lg" @onclick="() => ShowModal = true">
+                ✨ Создать приглашение
+            </button>
         </div>
-        <p class="text-center text-gray-600 mb-6">Приглашайте друг друга на романтические события ✨</p>
-        <div class="flex gap-2 justify-center mb-6">
-            <button class="px-4 py-2 rounded-full text-sm font-semibold @(ActiveTab==TabMy?"bg-pink-500 text-white":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabMy">Мои (@MyInvites.Count())</button>
-            <button class="px-4 py-2 rounded-full text-sm font-semibold @(ActiveTab==TabPartner?"bg-pink-500 text-white":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabPartner">Партнёра (@PartnerInvites.Count())</button>
-            <button class="px-4 py-2 rounded-full text-sm font-semibold @(ActiveTab==TabAll?"bg-pink-500 text-white":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabAll">Все (@InviteList.Count)</button>
+
+        <!-- Статистика -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-pink-600">@InviteList.Count</div>
+                <div class="text-xs text-gray-600">Всего событий</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-purple-600">@MyInvites.Count()</div>
+                <div class="text-xs text-gray-600">Мои приглашения</div>
+            </div>
+            <div class="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-blue-600">@InviteList.Count(i => i.Date >= DateTime.Today)</div>
+                <div class="text-xs text-gray-600">Предстоящих</div>
+            </div>
         </div>
-        <div class="space-y-5">
-            @foreach (var i in (ActiveTab==TabMy ? MyInvites : ActiveTab==TabPartner ? PartnerInvites : InviteList.OrderBy(x => x.Date)))
-            {
-                <div class="flex items-center gap-4 bg-gradient-to-r from-pink-100 to-rose-50 rounded-xl shadow-lg p-5">
-                    <div class="flex-shrink-0 text-3xl">@i.Emoji</div>
-                    <div class="flex-1">
-                        <div class="text-lg font-semibold text-pink-700">@i.Title</div>
-                        <div class="text-gray-400 text-sm">@i.Date.ToLocalTime().ToString("dd.MM.yyyy")</div>
+        <!-- Навигация по вкладкам -->
+        <div class="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 mb-8">
+            <div class="flex gap-2 justify-center mb-6">
+                <button class="px-4 py-2 rounded-full text-sm font-semibold transition @(ActiveTab==TabMy?"bg-pink-500 text-white shadow-lg":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabMy">
+                    💝 Мои (@MyInvites.Count())
+                </button>
+                <button class="px-4 py-2 rounded-full text-sm font-semibold transition @(ActiveTab==TabPartner?"bg-pink-500 text-white shadow-lg":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabPartner">
+                    💌 Партнера (@PartnerInvites.Count())
+                </button>
+                <button class="px-4 py-2 rounded-full text-sm font-semibold transition @(ActiveTab==TabAll?"bg-pink-500 text-white shadow-lg":"bg-pink-50 text-pink-600 hover:bg-pink-100")" @onclick="() => ActiveTab = TabAll">
+                    📅 Все (@InviteList.Count)
+                </button>
+            </div>
+
+            <!-- Список приглашений -->
+            <div class="space-y-4">
+                @{
+                    var invitesToShow = ActiveTab == TabMy ? MyInvites : ActiveTab == TabPartner ? PartnerInvites : InviteList.OrderBy(x => x.Date);
+                }
+                
+                @foreach (var invite in invitesToShow)
+                {
+                    var isUpcoming = invite.Date >= DateTime.Today;
+                    var isPast = invite.Date < DateTime.Today;
+                    var isToday = invite.Date.Date == DateTime.Today;
+                    var isMyInvite = invite.CreatedByUserId == UserId;
+                    
+                    <div class="group bg-gradient-to-br @(isToday ? "from-pink-100 to-rose-100 border-2 border-pink-300" : isUpcoming ? "from-white to-purple-50 border border-purple-200" : "from-gray-50 to-gray-100 border border-gray-200") rounded-2xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
+                        <div class="flex items-start gap-4">
+                            <!-- Иконка события -->
+                            <div class="flex-shrink-0">
+                                <div class="w-16 h-16 rounded-2xl @(isToday ? "bg-pink-200" : isUpcoming ? "bg-purple-200" : "bg-gray-200") flex items-center justify-center text-3xl shadow-md">
+                                    @invite.Emoji
+                                </div>
+                            </div>
+                            
+                            <!-- Информация о событии -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="flex-1">
+                                        <h3 class="text-xl font-bold @(isToday ? "text-pink-800" : isUpcoming ? "text-purple-800" : "text-gray-600") mb-2">@invite.Title</h3>
+                                        
+                                        @if (!string.IsNullOrEmpty(invite.Description))
+                                        {
+                                            <p class="text-gray-600 mb-3 text-sm">@invite.Description</p>
+                                        }
+                                        
+                                        <!-- Дата и время -->
+                                        <div class="flex items-center gap-4 text-sm">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-lg">📅</span>
+                                                <span class="font-medium @(isToday ? "text-pink-700" : "text-gray-700")">
+                                                    @invite.Date.ToString("dd MMMM yyyy, dddd", new System.Globalization.CultureInfo("ru-RU"))
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-lg">🕐</span>
+                                                <span class="@(isToday ? "bg-pink-200 text-pink-800" : isUpcoming ? "bg-purple-200 text-purple-800" : "bg-gray-200 text-gray-700") px-3 py-1 rounded-full font-bold text-sm">
+                                                    @invite.Date.ToString("HH:mm")
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Статус -->
+                                        <div class="mt-3 flex items-center gap-2">
+                                            @if (isToday)
+                                            {
+                                                <span class="bg-pink-500 text-white px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+                                                    🎉 Сегодня!
+                                                </span>
+                                            }
+                                            else if (isUpcoming)
+                                            {
+                                                var daysUntil = (invite.Date.Date - DateTime.Today).Days;
+                                                <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                                                    ⏰ Через @daysUntil @(daysUntil == 1 ? "день" : daysUntil < 5 ? "дня" : "дней")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-sm">
+                                                    ✅ Прошедшее событие
+                                                </span>
+                                            }
+                                            
+                                            <span class="text-xs text-gray-500">
+                                                от @(isMyInvite ? "вас" : "партнера")
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Кнопки действий -->
+                                    @if (isMyInvite)
+                                    {
+                                        <div class="flex-shrink-0">
+                                            <button class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" 
+                                                    title="Отменить приглашение" @onclick="() => DeleteInvite(invite.Id)">
+                                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="bg-pink-200 text-pink-700 px-3 py-1 rounded-full font-bold text-sm shadow">@i.Date.ToLocalTime().ToString("HH:mm")</span>
-                        <button class="text-red-500 hover:text-red-600" title="Удалить" @onclick="() => DeleteInvite(i.Id)">🗑</button>
+                }
+                
+                <!-- Пустое состояние -->
+                @if (!invitesToShow.Any())
+                {
+                    <div class="text-center py-12 bg-white/60 rounded-2xl">
+                        <div class="text-6xl mb-4">🎟️</div>
+                        <h3 class="text-xl font-semibold text-gray-700 mb-2">
+                            @(ActiveTab == TabMy ? "У вас нет приглашений" : ActiveTab == TabPartner ? "Партнер пока не создавал приглашений" : "Нет событий")
+                        </h3>
+                        <p class="text-gray-500 mb-4">
+                            @(ActiveTab == TabMy ? "Создайте первое романтическое приглашение!" : "Ждем приглашений от партнера")
+                        </p>
+                        @if (ActiveTab == TabMy)
+                        {
+                            <button class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-xl font-semibold transition" @onclick="() => ShowModal = true">
+                                ✨ Создать приглашение
+                            </button>
+                        }
                     </div>
-                </div>
-            }
+                }
+            </div>
         </div>
     </div>
 </div>

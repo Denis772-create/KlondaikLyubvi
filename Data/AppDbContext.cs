@@ -8,9 +8,9 @@ namespace KlondaikLyubvi.Data
         public DbSet<LoveNote> LoveNotes { get; set; }
         public DbSet<Photo> Photos { get; set; }
         public DbSet<BucketItem> BucketItems { get; set; }
-        public DbSet<StoreItem> StoreItems { get; set; }
+        public DbSet<ServiceOffer> ServiceOffers { get; set; }
         public DbSet<Event> Events { get; set; }
-        public DbSet<LoveCoinTransaction> LoveCoinTransactions { get; set; }
+        public DbSet<ServiceExchange> ServiceExchanges { get; set; }
         public DbSet<WishlistItem> WishlistItems { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
@@ -18,17 +18,46 @@ namespace KlondaikLyubvi.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            
+            // Настройка связей для ServiceExchange
+            modelBuilder.Entity<ServiceExchange>()
+                .HasOne(e => e.Requester)
+                .WithMany()
+                .HasForeignKey(e => e.RequesterId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            modelBuilder.Entity<ServiceExchange>()
+                .HasOne(e => e.Provider)
+                .WithMany()
+                .HasForeignKey(e => e.ProviderId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            modelBuilder.Entity<ServiceExchange>()
+                .HasOne(e => e.RequestedService)
+                .WithMany()
+                .HasForeignKey(e => e.RequestedServiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            modelBuilder.Entity<ServiceExchange>()
+                .HasOne(e => e.OfferedService)
+                .WithMany()
+                .HasForeignKey(e => e.OfferedServiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
             // Seed users
             modelBuilder.Entity<User>().HasData(
                 new User { Id = 1, UserName = "denis", DisplayName = "Денис", PasswordHash = "denis" },
                 new User { Id = 2, UserName = "liza", DisplayName = "Лиза", PasswordHash = "liza" }
             );
-            // Seed store items
-            modelBuilder.Entity<StoreItem>().HasData(
-                new StoreItem { Id = 1, Name = "💆‍♀️ Массаж на 20 минут", Description = "Расслабляющий массаж от вашего любимого человека", Price = 5, Emoji = "💆‍♀️", UserId = 1 },
-                new StoreItem { Id = 2, Name = "🍳 Завтрак в постель", Description = "Вкусный завтрак и кофе, приготовленные с любовью", Price = 4, Emoji = "🍳", UserId = 1 },
-                new StoreItem { Id = 3, Name = "🎥 Вечер фильмов", Description = "Выбор фильма, плед и объятия", Price = 3, Emoji = "🎥", UserId = 2 },
-                new StoreItem { Id = 4, Name = "🛁 Совместная ванна", Description = "Свечи, музыка и расслабление вдвоём", Price = 7, Emoji = "🛁", UserId = 2 }
+            
+            // Seed service offers
+            modelBuilder.Entity<ServiceOffer>().HasData(
+                new ServiceOffer { Id = 1, Name = "Массаж на 20 минут", Description = "Расслабляющий массаж спины и плеч", Emoji = "💆‍♀️", UserId = 1, Category = "Релакс", CreatedAt = DateTime.UtcNow },
+                new ServiceOffer { Id = 2, Name = "Завтрак в постель", Description = "Вкусный завтрак и кофе, приготовленные с любовью", Emoji = "🍳", UserId = 1, Category = "Забота", CreatedAt = DateTime.UtcNow },
+                new ServiceOffer { Id = 3, Name = "Вечер фильмов", Description = "Выбор фильма, плед и объятия", Emoji = "🎥", UserId = 2, Category = "Досуг", CreatedAt = DateTime.UtcNow },
+                new ServiceOffer { Id = 4, Name = "Совместная ванна", Description = "Свечи, музыка и расслабление вдвоём", Emoji = "🛁", UserId = 2, Category = "Романтика", CreatedAt = DateTime.UtcNow },
+                new ServiceOffer { Id = 5, Name = "Домашний ужин", Description = "Приготовлю твое любимое блюдо", Emoji = "🍽️", UserId = 2, Category = "Забота", CreatedAt = DateTime.UtcNow },
+                new ServiceOffer { Id = 6, Name = "Прогулка под звездами", Description = "Романтическая прогулка в красивом месте", Emoji = "🌟", UserId = 1, Category = "Романтика", CreatedAt = DateTime.UtcNow }
             );
         }
     }
@@ -39,7 +68,6 @@ namespace KlondaikLyubvi.Data
         public string UserName { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
-        public int LovePoints { get; set; } = 12; // Баланс поцелуев
         public DateTime? LastVisit { get; set; }
     }
 
@@ -72,15 +100,17 @@ namespace KlondaikLyubvi.Data
         public User? User { get; set; }
     }
 
-    public class StoreItem
+    public class ServiceOffer
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public int Price { get; set; } // В поцелуях
         public string Emoji { get; set; } = string.Empty;
-        public int UserId { get; set; } // Владелец товара
+        public int UserId { get; set; } // Кто предлагает услугу
         public User? User { get; set; }
+        public bool IsActive { get; set; } = true; // Доступна ли услуга для обмена
+        public string Category { get; set; } = "Романтика"; // Категория услуги
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
     public class Event
@@ -93,22 +123,34 @@ namespace KlondaikLyubvi.Data
         public User? User { get; set; }
     }
 
-    public class LoveCoinTransaction
+    public class ServiceExchange
     {
         public int Id { get; set; }
-        public int UserId { get; set; }
-        public User? User { get; set; }
-        public int StoreItemId { get; set; }
-        public StoreItem? StoreItem { get; set; }
-        public DateTime Date { get; set; }
-        public bool IsGift { get; set; }
-        public int? ToUserId { get; set; }
-        public User? ToUser { get; set; }
-        public DateTime? ExecutionDate { get; set; }
-        public bool IsExecuted { get; set; } = false;
-        public DateTime? GiftStartDate { get; set; }
-        public DateTime? GiftEndDate { get; set; }
-        public int GiftCount { get; set; } = 1;
+        public int RequesterId { get; set; } // Кто запросил услугу
+        public User? Requester { get; set; }
+        public int ProviderId { get; set; } // Кто предоставляет услугу
+        public User? Provider { get; set; }
+        public int RequestedServiceId { get; set; } // Запрашиваемая услуга
+        public ServiceOffer? RequestedService { get; set; }
+        public int? OfferedServiceId { get; set; } // Предлагаемая в обмен услуга
+        public ServiceOffer? OfferedService { get; set; }
+        public DateTime RequestDate { get; set; }
+        public DateTime? ScheduledDate { get; set; } // Когда планируется исполнение
+        public ExchangeStatus Status { get; set; } = ExchangeStatus.Pending;
+        public string? RequestMessage { get; set; } // Сообщение при запросе
+        public string? ResponseMessage { get; set; } // Ответ от предоставляющего
+        public DateTime? CompletedDate { get; set; }
+        public int? Rating { get; set; } // Оценка 1-5 после исполнения
+        public string? Review { get; set; } // Отзыв
+    }
+
+    public enum ExchangeStatus
+    {
+        Pending,    // Ожидает подтверждения
+        Accepted,   // Принято, ожидает исполнения
+        Completed,  // Исполнено
+        Declined,   // Отклонено
+        Cancelled   // Отменено
     }
 
     public class WishlistItem

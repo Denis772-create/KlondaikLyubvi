@@ -3,6 +3,7 @@ using System;
 using KlondaikLyubvi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KlondaikLyubvi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250927112853_RomanceExchangeSystem")]
+    partial class RomanceExchangeSystem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.18");
@@ -127,9 +130,6 @@ namespace KlondaikLyubvi.Migrations
                     b.Property<DateTime?>("CompletedDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("OfferedServiceId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("ProviderId")
                         .HasColumnType("INTEGER");
 
@@ -141,9 +141,6 @@ namespace KlondaikLyubvi.Migrations
 
                     b.Property<string>("RequestMessage")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("RequestedServiceId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("RequesterId")
                         .HasColumnType("INTEGER");
@@ -157,18 +154,19 @@ namespace KlondaikLyubvi.Migrations
                     b.Property<DateTime?>("ScheduledDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ServiceOfferId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OfferedServiceId");
-
                     b.HasIndex("ProviderId");
 
-                    b.HasIndex("RequestedServiceId");
-
                     b.HasIndex("RequesterId");
+
+                    b.HasIndex("ServiceOfferId");
 
                     b.ToTable("ServiceExchanges");
                 });
@@ -181,9 +179,6 @@ namespace KlondaikLyubvi.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
@@ -200,6 +195,9 @@ namespace KlondaikLyubvi.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TrustCost")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
@@ -214,66 +212,66 @@ namespace KlondaikLyubvi.Migrations
                         {
                             Id = 1,
                             Category = "Релакс",
-                            CreatedAt = new DateTime(2025, 9, 27, 11, 49, 41, 76, DateTimeKind.Utc).AddTicks(4639),
                             Description = "Расслабляющий массаж спины и плеч",
                             Emoji = "💆‍♀️",
                             IsActive = true,
                             Name = "Массаж на 20 минут",
+                            TrustCost = 1,
                             UserId = 1
                         },
                         new
                         {
                             Id = 2,
                             Category = "Забота",
-                            CreatedAt = new DateTime(2025, 9, 27, 11, 49, 41, 76, DateTimeKind.Utc).AddTicks(4642),
                             Description = "Вкусный завтрак и кофе, приготовленные с любовью",
                             Emoji = "🍳",
                             IsActive = true,
                             Name = "Завтрак в постель",
+                            TrustCost = 1,
                             UserId = 1
                         },
                         new
                         {
                             Id = 3,
                             Category = "Досуг",
-                            CreatedAt = new DateTime(2025, 9, 27, 11, 49, 41, 76, DateTimeKind.Utc).AddTicks(4644),
                             Description = "Выбор фильма, плед и объятия",
                             Emoji = "🎥",
                             IsActive = true,
                             Name = "Вечер фильмов",
+                            TrustCost = 1,
                             UserId = 2
                         },
                         new
                         {
                             Id = 4,
                             Category = "Романтика",
-                            CreatedAt = new DateTime(2025, 9, 27, 11, 49, 41, 76, DateTimeKind.Utc).AddTicks(4646),
                             Description = "Свечи, музыка и расслабление вдвоём",
                             Emoji = "🛁",
                             IsActive = true,
                             Name = "Совместная ванна",
+                            TrustCost = 2,
                             UserId = 2
                         },
                         new
                         {
                             Id = 5,
                             Category = "Забота",
-                            CreatedAt = new DateTime(2025, 9, 27, 11, 49, 41, 76, DateTimeKind.Utc).AddTicks(4647),
                             Description = "Приготовлю твое любимое блюдо",
                             Emoji = "🍽️",
                             IsActive = true,
                             Name = "Домашний ужин",
+                            TrustCost = 1,
                             UserId = 2
                         },
                         new
                         {
                             Id = 6,
                             Category = "Романтика",
-                            CreatedAt = new DateTime(2025, 9, 27, 11, 49, 41, 76, DateTimeKind.Utc).AddTicks(4649),
                             Description = "Романтическая прогулка в красивом месте",
                             Emoji = "🌟",
                             IsActive = true,
                             Name = "Прогулка под звездами",
+                            TrustCost = 1,
                             UserId = 1
                         });
                 });
@@ -295,6 +293,9 @@ namespace KlondaikLyubvi.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TrustCredits")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("UserName")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -309,6 +310,7 @@ namespace KlondaikLyubvi.Migrations
                             Id = 1,
                             DisplayName = "Денис",
                             PasswordHash = "denis",
+                            TrustCredits = 5,
                             UserName = "denis"
                         },
                         new
@@ -316,6 +318,7 @@ namespace KlondaikLyubvi.Migrations
                             Id = 2,
                             DisplayName = "Лиза",
                             PasswordHash = "liza",
+                            TrustCredits = 5,
                             UserName = "liza"
                         });
                 });
@@ -414,20 +417,9 @@ namespace KlondaikLyubvi.Migrations
 
             modelBuilder.Entity("KlondaikLyubvi.Data.ServiceExchange", b =>
                 {
-                    b.HasOne("KlondaikLyubvi.Data.ServiceOffer", "OfferedService")
-                        .WithMany()
-                        .HasForeignKey("OfferedServiceId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("KlondaikLyubvi.Data.User", "Provider")
                         .WithMany()
                         .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("KlondaikLyubvi.Data.ServiceOffer", "RequestedService")
-                        .WithMany()
-                        .HasForeignKey("RequestedServiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -437,13 +429,17 @@ namespace KlondaikLyubvi.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("OfferedService");
+                    b.HasOne("KlondaikLyubvi.Data.ServiceOffer", "ServiceOffer")
+                        .WithMany()
+                        .HasForeignKey("ServiceOfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Provider");
 
-                    b.Navigation("RequestedService");
-
                     b.Navigation("Requester");
+
+                    b.Navigation("ServiceOffer");
                 });
 
             modelBuilder.Entity("KlondaikLyubvi.Data.ServiceOffer", b =>

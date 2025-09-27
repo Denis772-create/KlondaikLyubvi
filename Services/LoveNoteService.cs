@@ -28,7 +28,7 @@ public class LoveNoteService
         _db.LoveNotes.Add(note);
         // +1 балл за признание
         var user = await _db.Users.FindAsync(userId);
-        if (user != null) user.LovePoints++;
+        // Убрали систему кредитов
         await _db.SaveChangesAsync();
        // await _telegram.SendMessageAsync(userId, $"💌 Новая записка: {text}");
         return note;

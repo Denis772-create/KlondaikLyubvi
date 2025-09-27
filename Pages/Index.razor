@@ -1,48 +1,246 @@
 ﻿@page "/"
 
 @inject IJSRuntime JS
+@inject HttpClient Http
 
 @code {
     string? Greeting;
+    int UserId = 0;
+    string UserName = "";
+    int TotalLoveNotes = 0;
+    int TotalPhotos = 0;
+    int ActiveExchanges = 0;
+    int PendingRequests = 0;
+    int UpcomingEvents = 0;
+    int WishlistItems = 0;
+    DateTime LastActivity = DateTime.MinValue;
+    List<string> RecentActivities = new();
+    
     protected override async Task OnInitializedAsync()
     {
-        var userId = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
-        if (userId == "2") // Лиза
-            Greeting = "Добро пожаловать, <b>Любимая</b>!<br>Это наше личное романтическое пространство";
-        else if (userId == "1") // Денис
-            Greeting = "Добро пожаловать, <b>Денис</b>!<br>Это ваше личное романтическое пространство";
+        var userIdStr = await JS.InvokeAsync<string>("blazorGetCookie", "userId");
+        if (int.TryParse(userIdStr, out UserId))
+        {
+            await LoadUserData();
+            await LoadStats();
+        }
+        
+        if (UserId == 2) // Лиза
+        {
+            Greeting = "Добро пожаловать, <b>Любимая</b>! 💖";
+            UserName = "Лиза";
+        }
+        else if (UserId == 1) // Денис
+        {
+            Greeting = "Добро пожаловать, <b>Денис</b>! 💙";
+            UserName = "Денис";
+        }
         else
-            Greeting = "Добро пожаловать!<br>Ваше личное романтическое пространство";
+        {
+            Greeting = "Добро пожаловать! 💕";
+            UserName = "Гость";
+        }
+    }
+
+    async Task LoadUserData()
+    {
+        try
+        {
+            // Загружаем статистику пользователя
+            var users = await Http.GetFromJsonAsync<List<dynamic>>("/api/users");
+            // Здесь можно добавить логику для получения последней активности
+        }
+        catch { }
+    }
+
+    async Task LoadStats()
+    {
+        try
+        {
+            // Загружаем статистику
+            var notes = await Http.GetFromJsonAsync<List<dynamic>>("/api/lovenotes");
+            TotalLoveNotes = notes?.Count ?? 0;
+            
+            var photos = await Http.GetFromJsonAsync<List<dynamic>>("/api/photos");
+            TotalPhotos = photos?.Count ?? 0;
+            
+            var activeExchanges = await Http.GetFromJsonAsync<List<dynamic>>($"/api/exchanges/active/{UserId}");
+            ActiveExchanges = activeExchanges?.Count ?? 0;
+            
+            var pendingRequests = await Http.GetFromJsonAsync<List<dynamic>>($"/api/exchanges/pending/{UserId}");
+            PendingRequests = pendingRequests?.Count ?? 0;
+            
+            var events = await Http.GetFromJsonAsync<List<dynamic>>("/api/invites");
+            UpcomingEvents = events?.Where(e => DateTime.Parse(e.GetProperty("date").GetString()) > DateTime.Now).Count() ?? 0;
+            
+            var wishlist = await Http.GetFromJsonAsync<List<dynamic>>($"/api/wishlist/{UserId}");
+            WishlistItems = wishlist?.Count ?? 0;
+            
+            // Формируем список недавних активностей
+            GenerateRecentActivities();
+        }
+        catch { }
+    }
+
+    void GenerateRecentActivities()
+    {
+        RecentActivities.Clear();
+        
+        if (TotalLoveNotes > 0)
+            RecentActivities.Add($"📝 {TotalLoveNotes} признаний в любви");
+        if (TotalPhotos > 0)
+            RecentActivities.Add($"📸 {TotalPhotos} совместных фотографий");
+        if (ActiveExchanges > 0)
+            RecentActivities.Add($"💝 {ActiveExchanges} активных обменов");
+        if (WishlistItems > 0)
+            RecentActivities.Add($"🌟 {WishlistItems} желаний в списке");
+            
+        if (RecentActivities.Count == 0)
+            RecentActivities.Add("🌱 Начните создавать воспоминания вместе!");
+    }
+
+    string GetMotivationalMessage()
+    {
+        var messages = new[]
+        {
+            "Каждый день - новая возможность показать свою любовь! 💕",
+            "Маленькие жесты создают большие воспоминания ✨",
+            "Любовь растет, когда ею делятся 🌱",
+            "Сегодня отличный день для романтики! 🌹",
+            "Ваша история любви продолжается... 📖"
+        };
+        
+        return messages[DateTime.Now.DayOfYear % messages.Length];
     }
 }
 
-<div class="bg-gradient-to-br from-pink-100 to-red-200 min-h-screen flex items-center justify-center font-sans">
-    <div class="w-full max-w-2xl p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl text-center">
-        <div class="flex items-center justify-center gap-3 mb-4">
-            <span class="text-4xl">💖</span>
-            <span class="text-5xl font-extrabold text-pink-600 drop-shadow">Кландайк Любви</span>
-            <span class="text-4xl">💖</span>
+<div class="bg-gradient-to-br from-purple-100 via-pink-100 to-rose-200 min-h-screen py-6 px-4 font-sans">
+    <div class="max-w-6xl mx-auto">
+        <!-- Заголовок и приветствие -->
+        <div class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <span class="text-4xl animate-pulse">💝</span>
+                <span class="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent drop-shadow">Банк Романтики</span>
+                <span class="text-4xl animate-pulse">💝</span>
+            </div>
+            <div class="text-lg md:text-xl mb-4 text-gray-700">
+                @((MarkupString)Greeting)
+            </div>
+            <div class="text-sm text-gray-600 bg-white/60 rounded-xl p-3 inline-block">
+                @GetMotivationalMessage()
+            </div>
         </div>
-        <div class="text-lg md:text-xl mb-8 text-gray-700">
-            @((MarkupString)Greeting)
+
+        <!-- Статистика и активность -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Быстрая статистика -->
+            <div class="lg:col-span-2 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    📊 Ваша история любви
+                </h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="text-center p-4 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl">
+                        <div class="text-2xl font-bold text-pink-600">@TotalLoveNotes</div>
+                        <div class="text-sm text-gray-600">Признаний</div>
+                    </div>
+                    <div class="text-center p-4 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl">
+                        <div class="text-2xl font-bold text-purple-600">@TotalPhotos</div>
+                        <div class="text-sm text-gray-600">Фотографий</div>
+                    </div>
+                    <div class="text-center p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl">
+                        <div class="text-2xl font-bold text-blue-600">@ActiveExchanges</div>
+                        <div class="text-sm text-gray-600">Активных обменов</div>
+                    </div>
+                    <div class="text-center p-4 bg-gradient-to-br from-green-100 to-blue-100 rounded-xl">
+                        <div class="text-2xl font-bold text-green-600">@WishlistItems</div>
+                        <div class="text-sm text-gray-600">Желаний</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Уведомления и активность -->
+            <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    🔔 Активность
+                </h3>
+                @if (PendingRequests > 0)
+                {
+                    <div class="mb-3 p-3 bg-yellow-100 border-l-4 border-yellow-400 rounded">
+                        <div class="text-sm font-semibold text-yellow-800">@PendingRequests новых запросов</div>
+                        <a href="/romance-bank" class="text-xs text-yellow-600 hover:underline">Посмотреть →</a>
+                    </div>
+                }
+                @if (UpcomingEvents > 0)
+                {
+                    <div class="mb-3 p-3 bg-blue-100 border-l-4 border-blue-400 rounded">
+                        <div class="text-sm font-semibold text-blue-800">@UpcomingEvents предстоящих событий</div>
+                        <a href="/invites" class="text-xs text-blue-600 hover:underline">Посмотреть →</a>
+                    </div>
+                }
+                <div class="space-y-2">
+                    @foreach (var activity in RecentActivities.Take(3))
+                    {
+                        <div class="text-sm text-gray-600 p-2 bg-gray-50 rounded">@activity</div>
+                    }
+                </div>
+            </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            <a href="/gallery" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-400 to-pink-500 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
-                <span class="text-2xl">📸</span> Галерея
-            </a>
-            <a href="/love" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-500 to-pink-600 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
-                <span class="text-2xl">📝</span> Признания
-            </a>
-            <a href="/invites" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-300 to-pink-400 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
-                <span class="text-2xl">🎟️</span> Приглашения
-            </a>
-            <a href="/store" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-200 to-pink-300 text-white text-lg font-semibold hover:scale-105 hover:shadow-xl">
-                <span class="text-2xl">💋</span> Магазин любви
-            </a>
-            <a href="/wishlist" class="flex items-center justify-center gap-2 py-4 rounded-xl shadow-md transition bg-gradient-to-r from-pink-100 to-pink-200 text-pink-700 text-lg font-semibold hover:scale-105 hover:shadow-xl">
-                <span class="text-2xl">🌟</span> Wishlist
-            </a>
+
+        <!-- Навигация по разделам -->
+        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-xl p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Разделы приложения</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <a href="/love" class="group flex flex-col items-center p-6 rounded-xl shadow-md transition bg-gradient-to-br from-pink-400 to-pink-500 text-white hover:scale-105 hover:shadow-xl">
+                    <span class="text-4xl mb-3 group-hover:animate-bounce">📝</span>
+                    <span class="text-lg font-semibold">Признания</span>
+                    <span class="text-sm opacity-90 text-center mt-1">Делитесь чувствами каждый день</span>
+                </a>
+                
+                <a href="/gallery" class="group flex flex-col items-center p-6 rounded-xl shadow-md transition bg-gradient-to-br from-purple-400 to-pink-400 text-white hover:scale-105 hover:shadow-xl">
+                    <span class="text-4xl mb-3 group-hover:animate-bounce">📸</span>
+                    <span class="text-lg font-semibold">Галерея</span>
+                    <span class="text-sm opacity-90 text-center mt-1">Сохраняйте особенные моменты</span>
+                </a>
+                
+                <a href="/romance-bank" class="group flex flex-col items-center p-6 rounded-xl shadow-md transition bg-gradient-to-br from-purple-500 to-purple-600 text-white hover:scale-105 hover:shadow-xl">
+                    <span class="text-4xl mb-3 group-hover:animate-bounce">💝</span>
+                    <span class="text-lg font-semibold">Банк Романтики</span>
+                    <span class="text-sm opacity-90 text-center mt-1">Обменивайтесь заботой</span>
+                    @if (PendingRequests > 0)
+                    {
+                        <span class="mt-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold">@PendingRequests новых</span>
+                    }
+                </a>
+                
+                <a href="/invites" class="group flex flex-col items-center p-6 rounded-xl shadow-md transition bg-gradient-to-br from-blue-400 to-purple-400 text-white hover:scale-105 hover:shadow-xl">
+                    <span class="text-4xl mb-3 group-hover:animate-bounce">🎟️</span>
+                    <span class="text-lg font-semibold">Приглашения</span>
+                    <span class="text-sm opacity-90 text-center mt-1">Планируйте романтические встречи</span>
+                    @if (UpcomingEvents > 0)
+                    {
+                        <span class="mt-2 bg-blue-300 text-blue-900 px-2 py-1 rounded-full text-xs font-bold">@UpcomingEvents событий</span>
+                    }
+                </a>
+                
+                <a href="/wishlist" class="group flex flex-col items-center p-6 rounded-xl shadow-md transition bg-gradient-to-br from-pink-300 to-rose-300 text-white hover:scale-105 hover:shadow-xl">
+                    <span class="text-4xl mb-3 group-hover:animate-bounce">🌟</span>
+                    <span class="text-lg font-semibold">Wishlist</span>
+                    <span class="text-sm opacity-90 text-center mt-1">Список желаний и мечт</span>
+                </a>
+                
+                <a href="/calendar" class="group flex flex-col items-center p-6 rounded-xl shadow-md transition bg-gradient-to-br from-green-400 to-blue-400 text-white hover:scale-105 hover:shadow-xl">
+                    <span class="text-4xl mb-3 group-hover:animate-bounce">📅</span>
+                    <span class="text-lg font-semibold">Календарь</span>
+                    <span class="text-sm opacity-90 text-center mt-1">Важные даты и события</span>
+                </a>
+            </div>
         </div>
-        <footer class="text-xs text-gray-500 mt-4">Создано с любовью ❤️</footer>
+
+        <!-- Футер -->
+        <footer class="text-center mt-8 text-sm text-gray-500">
+            <div class="bg-white/60 rounded-xl p-4 inline-block">
+                Создано с любовью ❤️ • Ваше личное романтическое пространство
+            </div>
+        </footer>
     </div>
 </div>
