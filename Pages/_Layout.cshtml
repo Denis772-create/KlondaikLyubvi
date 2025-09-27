@@ -163,29 +163,167 @@
             <span style="font-size:2rem;color:#d9468f;">🛒</span>
         </button>
     </div>
-    <nav id="main-nav" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex gap-3 bg-white/90 backdrop-blur-md shadow-lg rounded-full px-4 py-2 border border-pink-200">
-        <a href="/" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Главная">
-            <span class="text-xl">🏠</span>
+    <!-- Улучшенная навигационная панель -->
+    <nav id="main-nav" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex gap-2 bg-white/95 backdrop-blur-md shadow-xl rounded-full px-3 py-2 border border-pink-200 transition-all duration-300 ease-in-out">
+        <a href="/" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Главная" data-page="/">
+            <span class="text-lg">🏠</span>
+            <div class="nav-indicator"></div>
         </a>
-        <a href="/love" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Признания">
-            <span class="text-xl">💌</span>
+        <a href="/love" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Признания" data-page="/love">
+            <span class="text-lg">💌</span>
+            <div class="nav-indicator"></div>
         </a>
-        <a href="/romance-bank" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Банк Романтики">
-            <span class="text-xl">💝</span>
+        <a href="/romance-bank" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Банк Романтики" data-page="/romance-bank">
+            <span class="text-lg">💝</span>
+            <div class="nav-indicator"></div>
         </a>
-        <a href="/gallery" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Галерея">
-            <span class="text-xl">📸</span>
+        <a href="/gallery" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Галерея" data-page="/gallery">
+            <span class="text-lg">📸</span>
+            <div class="nav-indicator"></div>
         </a>
-        <a href="/invites" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Приглашения">
-            <span class="text-xl">🎟️</span>
+        <a href="/invites" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Приглашения" data-page="/invites">
+            <span class="text-lg">🎟️</span>
+            <div class="nav-indicator"></div>
         </a>
-        <a href="/wishlist" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Wishlist">
-            <span class="text-xl">🌟</span>
+        <a href="/wishlist" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Wishlist" data-page="/wishlist">
+            <span class="text-lg">🌟</span>
+            <div class="nav-indicator"></div>
         </a>
-        <a href="/calendar" class="flex flex-col items-center text-pink-500 hover:text-pink-700 transition p-2 rounded-lg hover:bg-pink-50" title="Календарь">
-            <span class="text-xl">📅</span>
+        <a href="/calendar" class="nav-item flex flex-col items-center text-pink-500 hover:text-pink-700 transition-all duration-200 p-2 rounded-lg hover:bg-pink-50 relative" title="Календарь" data-page="/calendar">
+            <span class="text-lg">📅</span>
+            <div class="nav-indicator"></div>
         </a>
     </nav>
+    
+    <!-- Кнопка показа/скрытия навигации -->
+    <button id="nav-toggle" class="fixed bottom-4 right-4 z-50 w-12 h-12 bg-pink-500 hover:bg-pink-600 text-white rounded-full shadow-lg transition-all duration-300 flex items-center justify-center" style="display: none;" title="Показать/скрыть навигацию">
+        <span id="nav-toggle-icon" class="text-lg">📱</span>
+    </button>
+
+    <style>
+        /* Стили для навигации */
+        .nav-item.active {
+            background: linear-gradient(135deg, #ec4899, #f97316);
+            color: white !important;
+            transform: scale(1.1);
+        }
+        
+        .nav-item.active span {
+            color: white;
+        }
+        
+        .nav-indicator {
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: #ec4899;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .nav-item.active .nav-indicator {
+            opacity: 1;
+        }
+        
+        /* Скрытие навигации */
+        #main-nav.nav-hidden {
+            transform: translateX(-50%) translateY(100px);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        /* Адаптивность */
+        @@media (max-width: 640px) {
+            #main-nav {
+                bottom: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: calc(100% - 16px);
+                max-width: 400px;
+                gap: 1px;
+                padding: 6px 8px;
+                border-radius: 20px;
+            }
+            
+            .nav-item {
+                padding: 6px 4px;
+                min-width: 40px;
+                border-radius: 8px;
+            }
+            
+            .nav-item span {
+                font-size: 0.9rem;
+            }
+            
+            #nav-toggle {
+                bottom: 8px;
+                right: 8px;
+                width: 48px;
+                height: 48px;
+            }
+            
+            /* Скрытие навигации на мобильных при скролле */
+            #main-nav.nav-hidden {
+                transform: translateX(-50%) translateY(80px);
+            }
+        }
+        
+        /* Планшеты */
+        @@media (min-width: 641px) and (max-width: 1024px) {
+            #main-nav {
+                bottom: 12px;
+                gap: 2px;
+                padding: 8px 16px;
+            }
+            
+            .nav-item {
+                padding: 8px 12px;
+            }
+        }
+        
+        /* Улучшенная анимация для touch устройств */
+        @@media (hover: none) and (pointer: coarse) {
+            .nav-item:active {
+                transform: scale(0.95);
+                background: rgba(236, 72, 153, 0.1);
+            }
+            
+            #nav-toggle:active {
+                transform: scale(0.95);
+            }
+        }
+        
+        /* Скрытие при модальных окнах */
+        body.modal-open #main-nav {
+            z-index: 30;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        body.modal-open #nav-toggle {
+            z-index: 60;
+        }
+        
+        /* Анимация появления */
+        #main-nav {
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @@keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
     
     <script src="_framework/blazor.server.js"></script>
     <script>
@@ -202,15 +340,28 @@
             }
             document.cookie = name + '=' + value + expires + '; path=/';
         }
+        // Улучшенная функциональность навигации
+        let navHideTimeout;
+        let isNavVisible = true;
+        let lastScrollY = window.scrollY;
+        
         function updateNavVisibility() {
             const nav = document.getElementById('main-nav');
+            const navToggle = document.getElementById('nav-toggle');
             const userId = blazorGetCookie('userId');
+            
             if (!nav) return;
-            if (window.location.pathname === '/' || window.location.pathname === '/login') {
+            
+            // Скрываем на страницах входа
+            if (window.location.pathname === '/login' || !userId) {
                 nav.style.display = 'none';
-            } else {
-                nav.style.display = '';
+                if (navToggle) navToggle.style.display = 'none';
+                return;
             }
+            
+            nav.style.display = 'flex';
+            updateActiveNavItem();
+            
             // Управление: только для Дениса
             const adminFab = document.getElementById('admin-fab');
             if (adminFab) {
@@ -222,12 +373,186 @@
                 storeFab.style.display = (window.location.pathname === '/store') ? '' : 'none';
             }
         }
+        
+        function updateActiveNavItem() {
+            const navItems = document.querySelectorAll('.nav-item');
+            const currentPath = window.location.pathname;
+            
+            navItems.forEach(item => {
+                const itemPath = item.getAttribute('data-page');
+                if (itemPath === currentPath || (currentPath === '/' && itemPath === '/')) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+        
+        function hideNavOnScroll() {
+            const nav = document.getElementById('main-nav');
+            const navToggle = document.getElementById('nav-toggle');
+            
+            if (!nav || window.location.pathname === '/login') return;
+            
+            const currentScrollY = window.scrollY;
+            
+            // Скрываем навигацию при скролле вниз, показываем при скролле вверх
+            if (currentScrollY > lastScrollY && currentScrollY > 100) {
+                // Скролл вниз
+                if (isNavVisible) {
+                    nav.classList.add('nav-hidden');
+                    if (navToggle) navToggle.style.display = 'flex';
+                    isNavVisible = false;
+                }
+            } else if (currentScrollY < lastScrollY || currentScrollY < 50) {
+                // Скролл вверх или в начале страницы
+                if (!isNavVisible) {
+                    nav.classList.remove('nav-hidden');
+                    if (navToggle) navToggle.style.display = 'none';
+                    isNavVisible = true;
+                }
+            }
+            
+            lastScrollY = currentScrollY;
+        }
+        
+        function toggleNav() {
+            const nav = document.getElementById('main-nav');
+            const navToggle = document.getElementById('nav-toggle');
+            
+            if (nav && nav.classList.contains('nav-hidden')) {
+                nav.classList.remove('nav-hidden');
+                if (navToggle) navToggle.style.display = 'none';
+                isNavVisible = true;
+            } else if (nav) {
+                nav.classList.add('nav-hidden');
+                if (navToggle) navToggle.style.display = 'flex';
+                isNavVisible = false;
+            }
+        }
+        
+        // Глобальные функции для использования в компонентах
+        window.showNav = function() {
+            const nav = document.getElementById('main-nav');
+            if (nav) {
+                nav.classList.remove('nav-hidden');
+                const navToggle = document.getElementById('nav-toggle');
+                if (navToggle) navToggle.style.display = 'none';
+                isNavVisible = true;
+            }
+        };
+        
+        window.hideNav = function() {
+            const nav = document.getElementById('main-nav');
+            if (nav) {
+                nav.classList.add('nav-hidden');
+                const navToggle = document.getElementById('nav-toggle');
+                if (navToggle) navToggle.style.display = 'flex';
+                isNavVisible = false;
+            }
+        };
+        
+        window.handleModalOpen = function() {
+            document.body.classList.add('modal-open');
+        };
+        
+        window.handleModalClose = function() {
+            document.body.classList.remove('modal-open');
+        };
+        
+        // Автоматическое отслеживание модальных окон
+        function observeModals() {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) { // Element node
+                            // Ищем модальные окна по классам или структуре
+                            const modals = node.querySelectorAll ? 
+                                node.querySelectorAll('.fixed.inset-0, [class*="modal"], [class*="z-50"]') : [];
+                            
+                            if (modals.length > 0 || (node.classList && (
+                                node.classList.contains('fixed') && 
+                                node.classList.contains('inset-0')))) {
+                                handleModalOpen();
+                            }
+                        }
+                    });
+                    
+                    mutation.removedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) {
+                            const modals = document.querySelectorAll('.fixed.inset-0[class*="z-50"], [class*="modal"]');
+                            if (modals.length === 0) {
+                                handleModalClose();
+                            }
+                        }
+                    });
+                });
+            });
+            
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+        
+        // Запускаем наблюдение за модальными окнами
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', observeModals);
+        } else {
+            observeModals();
+        }
+        
+        // Поддержка жестов смахивания для мобильных устройств
+        let touchStartY = 0;
+        let touchEndY = 0;
+        
+        function handleSwipeGesture() {
+            const swipeDistance = touchEndY - touchStartY;
+            const minSwipeDistance = 50;
+            
+            if (Math.abs(swipeDistance) > minSwipeDistance) {
+                if (swipeDistance > 0) {
+                    // Смахивание вниз - показать навигацию
+                    window.showNav();
+                } else {
+                    // Смахивание вверх - скрыть навигацию
+                    window.hideNav();
+                }
+            }
+        }
+        
+        // Добавляем обработчики touch событий только на мобильных
+        if ('ontouchstart' in window) {
+            document.addEventListener('touchstart', function(e) {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+            
+            document.addEventListener('touchend', function(e) {
+                touchEndY = e.changedTouches[0].clientY;
+                
+                // Проверяем, что касание было в нижней части экрана
+                if (touchStartY > window.innerHeight * 0.8) {
+                    handleSwipeGesture();
+                }
+            }, { passive: true });
+        }
         updateNavVisibility();
+        
+        // Обработчики событий
+        window.addEventListener('scroll', hideNavOnScroll, { passive: true });
+        window.addEventListener('popstate', updateNavVisibility);
+        
+        // Обработчик для кнопки переключения навигации
+        document.addEventListener('DOMContentLoaded', function() {
+            const navToggle = document.getElementById('nav-toggle');
+            if (navToggle) {
+                navToggle.addEventListener('click', toggleNav);
+            }
+        });
+        
         // Для Blazor: отслеживаем изменения URL через MutationObserver
         const app = document.getElementById('app');
         const observer = new MutationObserver(() => setTimeout(updateNavVisibility, 10));
-        observer.observe(app, { childList: true, subtree: true });
-        window.addEventListener('popstate', updateNavVisibility);
         document.addEventListener('click', function(e) {
             if (e.target.tagName === 'A' && e.target.href) {
                 setTimeout(updateNavVisibility, 50);
